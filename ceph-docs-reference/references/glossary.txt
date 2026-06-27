@@ -1,0 +1,200 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+  
+  
+  
+  
+  Ceph Glossary — Ceph Documentation
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    
+  
+  
+    
+      
+        
+        
+        
+        
+        
+        
+        
+    
+    
+    
+    
+    
+    
+     
+   
+  
+    
+  
+      
+      Ceph 词汇表
+      
+            查看页面源
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+          
+            Ceph
+          
+  
+    
+    
+    
+  
+          
+        
+        
+        
+          
+            
+            
+              
+            
+            
+              
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+            
+          
+        
+        
+      
+    
+    
+      
+      
+        
+           Ceph
+      
+        
+        
+        
+          
+           
+            
+  注意
+  本文档适用于 Ceph 的开发版本。
+  
+    报告文档错误
+  
+  
+  
+Ceph 词汇表
+Application（应用程序）更准确地说是 client（客户端），应用程序是使用 Ceph 集群存储和复制数据的任何外部程序。
+BlueStoreOSD BlueStore 是 OSD 守护程序使用的存储后端，专为与 Ceph 一起使用而设计。BlueStore 在 Ceph Kraken 版本中引入。Ceph Luminous 版本将 BlueStore 提升为默认 OSD 后端，取代了 FileStore。从 Reef 版本开始，FileStore 不再作为存储后端可用。
+BlueStore 将对象直接存储在裸块设备或分区上，并且不与已挂载的文件系统交互。BlueStore 使用 RocksDB 的键/值数据库将对象名称映射到磁盘上的块位置。
+Bucket（桶）在 RGW 的上下文中，桶是一组对象。在基于文件系统的类比中（其中对象对应于文件），桶对应于目录。多站点同步策略 可以设置在桶上，以提供对数据从一个区域移动到另一个区域的细粒度控制。
+桶的概念源自 AWS S3。另请参阅 AWS S3 上关于创建桶的页面 和 AWS S3 的“桶概述”页面。
+OpenStack Swift 使用术语“容器”（containers）来指代 RGW 和 AWS 所说的“桶”（buckets）。请参阅 OpenStack 存储 API 概述页面。
+CephCeph 是一种分布式网络存储和文件系统，具有分布式元数据管理和 POSIX 语义。
+ceph-ansible一个 GitHub 仓库，从 Jewel 版本到 Quincy 版本提供支持，用于促进 Ceph 集群的安装。
+Ceph Block Device（Ceph 块设备）也称为“RADOS Block Device”和 RBD。一种软件工具，用于协调 Ceph 中基于块的数据存储。Ceph Block Device 将基于块的应用程序数据分割成“块”。RADOS 将这些块作为对象存储。Ceph Block Device 协调这些对象在存储集群中的存储。
+Ceph Block Storage（Ceph 块存储）Ceph 支持的三种存储类型之一（另外两种是对象存储和文件存储）。Ceph 块存储是块存储的“产品”，指的是当与 (1) librbd（提供对 RBD 镜像进行文件式访问的 Python 模块）、(2) QEMU 或 Xen 等虚拟机监控程序以及 (3) libvirt 等虚拟机监控程序抽象层结合使用时，与块存储相关的服务和功能。
+Ceph Client（Ceph 客户端）可以访问 Ceph 存储集群的任何 Ceph 组件。这包括 Ceph Object Gateway、Ceph Block Device、Ceph File System 及其相应的库。它还包括内核模块和 FUSE（用户空间文件系统）。
+Ceph Client Libraries（Ceph 客户端库）可用于与 Ceph 集群组件交互的库集合。
+Ceph Cluster Map（Ceph 集群图）请参阅 Cluster Map（集群图）
+Ceph Dashboard（Ceph 仪表板）Ceph Dashboard 是一个内置的基于 Web 的 Ceph 管理和监控应用程序，通过它可以检查和管理集群内的各种资源。它作为 Ceph Manager Daemon 模块实现。
+Ceph File System（Ceph 文件系统）请参阅 CephFS
+CephFSCeph File System（Ceph 文件系统），或 CephFS，是一个构建在 Ceph 分布式对象存储 RADOS 之上的 POSIX 兼容文件系统。有关详细信息，请参阅 CephFS Architecture（CephFS 架构）。
+ceph-fuseceph-fuse 是 CephFS 的 FUSE（“Filesystem in USErspace”，用户空间文件系统）客户端。ceph-fuse 将 Ceph FS 挂载到指定的挂载点。
+Ceph Interim Release（Ceph 临时版本）请参阅 Releases（版本）。
+Ceph Kernel Modules（Ceph 内核模块）可用于与 Ceph 集群交互的内核模块集合（例如：ceph.ko、rbd.ko）。
+Ceph ManagerCeph 管理器守护程序 (ceph-mgr) 是一个与监视器守护程序一起运行的守护程序，用于提供监控和与外部监控及管理系统对接。自 Luminous 版本（12.x）以来，任何 Ceph 集群都必须包含一个正在运行的 ceph-mgr 守护程序才能正常工作。
+Ceph Manager Dashboard（Ceph 管理器仪表板）请参阅 Ceph Dashboard（Ceph 仪表板）。
+Ceph Metadata Server（Ceph 元数据服务器）请参阅 MDS。
+Ceph Monitor（Ceph 监视器）维护集群状态图的守护程序。这种“集群状态”包括监视器图、管理器图、OSD 图和 CRUSH 图。一个 Ceph 集群必须包含至少三个正在运行的监视器才能具有冗余性和高可用性。Ceph 监视器及其运行的节点通常被称为“mon”。请参阅 Monitor Config Reference（监视器配置参考）。
+Ceph Node（Ceph 节点）Ceph 节点是 Ceph 集群中的一个单元，它与其他 Ceph 集群中的节点通信以复制和重新分配数据。所有节点共同称为 Ceph Storage Cluster（Ceph 存储集群）。Ceph 节点包括 OSD、Ceph Monitor（Ceph 监视器）、Ceph Manager（Ceph 管理器）和 MDS。在 Ceph 文档中，“node”（节点）一词通常等同于“host”（主机）。如果有一个正在运行的 Ceph 集群，可以通过运行命令 ceph node ls all 来列出其中的所有节点。
+Ceph Object Gateway（Ceph 对象网关）一个构建在 librados 之上的对象存储接口。Ceph Object Gateway 在应用程序和 Ceph 存储集群之间提供 RESTful 网关。
+Ceph Object Storage（Ceph 对象存储）请参阅 Ceph Object Store（Ceph 对象存储）。
+Ceph Object Store（Ceph 对象存储库）Ceph 对象存储库由一个 Ceph Storage Cluster（Ceph 存储集群） 和一个 Ceph Object Gateway（Ceph 对象网关） (RGW) 组成。
+Ceph OSDCeph Object Storage Daemon（Ceph 对象存储守护程序）。与逻辑磁盘（OSD）交互的 Ceph OSD 软件。大约在 2013 年，"研究和行业"（Sage 原话）曾试图坚持使用术语“OSD”仅指“Object Storage Device”（对象存储设备），但 Ceph 社区一直坚持使用该术语指代“Object Storage Daemon”（对象存储守护程序），而且 Sage Weil 本人在 2022 年 11 月也证实了“Daemon for how Ceph is built is more accurate”（私下通信，Zac Dover 和 Sage Weil，2022 年 11 月 7 日）。
+Ceph OSD Daemon（Ceph OSD 守护程序）请参阅 Ceph OSD。
+Ceph OSD Daemons（Ceph OSD 守护程序们）请参阅 Ceph OSD。
+Ceph Platform（Ceph 平台）所有 Ceph 软件，包括托管在 https://github.com/ceph 上的任何代码片段。
+Ceph Point Release（Ceph 小版本）请参阅 Releases（版本）。
+Ceph Project（Ceph 项目）Ceph 的人员、软件、使命和基础设施的统称。
+Ceph Release（Ceph 版本）请参阅 Releases（版本）。
+Ceph Release Candidate（Ceph 候选版本）请参阅 Releases（版本）。
+Ceph Stable Release（Ceph 稳定版本）请参阅 Releases（版本）。
+Ceph Stack（Ceph 栈）两个或更多 Ceph 组件的集合。
+Ceph Storage Cluster（Ceph 存储集群）Ceph Monitor（Ceph 监视器）、Ceph Manager（Ceph 管理器）、Ceph Metadata Server（Ceph 元数据服务器）和 OSD 的集合，它们协同工作，为应用程序、Ceph 用户和 Ceph Client（Ceph 客户端）存储和复制数据。Ceph 存储集群接收来自 Ceph Client（Ceph 客户端）的数据。
+CephXCeph 认证协议。CephX 对用户和守护程序进行认证。CephX 的操作类似于 Kerberos，但没有单点故障。请参阅架构文档的高可用性认证部分和 CephX 配置参考。
+Client（客户端）客户端是使用 Ceph 集群存储和复制数据的任何外部程序。
+Cloud Platforms（云平台）Cloud Stacks（云栈）第三方云配置平台，例如 OpenStack、CloudStack、OpenNebula 和 Proxmox VE。
+Cluster Map（集群图）由监视器图、OSD 图、PG 图、MDS 图和 CRUSH 图组成的一组图，它们共同报告 Ceph 集群的状态。有关详细信息，请参阅 架构文档的“集群图”部分。
+Crimson（深红色）下一代 OSD 架构，旨在减少由跨核通信引起的延迟成本。OSD 的重新设计通过减少数据路径中分片之间的通信来减少锁竞争。Crimson 通过消除对线程池的依赖来提高经典 Ceph OSD 的性能。请参阅 Crimson: Next-generation Ceph OSD for Multi-core Scalability。请参阅 Crimson developer documentation（Crimson 开发人员文档）。
+CRUSHControlled Replication Under Scalable Hashing（可扩展哈希控制的复制）。Ceph 用于计算对象存储位置的算法。请参阅 CRUSH: Controlled, Scalable, Decentralized Placement of Replicated Data。
+CRUSH rule（CRUSH 规则）适用于特定池或池的 CRUSH 数据放置规则。
+DASDirect-Attached Storage（直连存储）。直接连接到访问它的计算机的存储，不通过网络。与 NAS 和 SAN 形成对比。
+Dashboard（仪表板）一个内置的基于 Web 的 Ceph 管理和监控应用程序，用于管理集群的各个方面和对象。仪表板作为 Ceph Manager 模块实现。有关详细信息，请参阅 Ceph Dashboard（Ceph 仪表板）。
+Dashboard Module（仪表板模块）另一个名称，指 Dashboard（仪表板）。
+Dashboard Plugin（仪表板插件）仪表板插件是 Mimic 时代的一个 Web 应用程序，它使用 Ceph Manager 托管的 Web 服务器来可视化有关 Ceph 集群的信息和统计数据。
+请参阅 Mimic 时代的 Dashboard Plugin 文档。
+DCData Center（数据中心）。
+Flapping OSD（OSD 抖动）一个反复被标记为 up，然后又迅速被标记为 down 的 OSD。请参阅 Flapping OSDs（抖动的 OSD）。
+FQDNFully Qualified Domain Name（完全限定域名）。应用于网络中节点的域名，用于指定该节点在 DNS 树层次结构中的确切位置。
+在 Ceph 集群管理环境中，FQDN 通常应用于主机。在本文档中，“FQDN”一词主要用于区分 FQDN 和相对简单的主机名，后者不指定主机在 DNS 树层次结构中的确切位置，而只是命名主机。
+Host（主机）Ceph 集群中的任何单台机器或服务器。请参阅 Ceph Node（Ceph 节点）。
+Hybrid OSD（混合 OSD）指同时具有 HDD 和 SSD 驱动器的 OSD。
+librados一个可用于创建 Ceph 存储集群自定义接口的 API。librados 使与 Ceph Monitors 和 OSD 交互成为可能。请参阅 Introduction to librados（librados 简介）。请参阅 librados (Python)。
+LVM tags（LVM 标签）Logical Volume Manager tags（逻辑卷管理器标签）。LVM 卷和组的可扩展元数据。它们用于存储有关设备及其与 OSD 关系的信息。
+MDSCeph MetaData Server daemon（Ceph 元数据服务器守护程序）。也称为“ceph-mds”。在运行 CephFS 文件系统的任何 Ceph 集群中，Ceph 元数据服务器守护程序必须正在运行。MDS 存储所有文件系统元数据。Client（客户端）与单个 MDS 或一组 MDS 协同工作，以维护 CephFS 所需的分布式元数据缓存。
+请参阅 Deploying Metadata Servers（部署元数据服务器）。
+请参阅 ceph-mds man page（ceph-mds 手册页）。
+MGRCeph 管理器软件，它将整个集群的所有状态收集到一个地方。
+MONCeph 监视器软件。
+Monitor Store（监视器存储）监视器使用的持久存储。这包括监视器的 RocksDB 以及 /var/lib/ceph 中所有相关文件。
+Node（节点）请参阅 Ceph Node（Ceph 节点）。
+Object Storage（对象存储）对象存储是与 Ceph 相关的三种存储类型之一。另外两种与 Ceph 相关的存储类型是文件存储和块存储。对象存储是 Ceph 最基础的存储类别。
+Object Storage Device（对象存储设备）请参阅 OSD。
+omap“object map”（对象映射）。一个键值存储（数据库），用于减少从 Ceph 集群读取数据和写入数据所需的时间。RGW 桶索引存储为 omaps。纠删码池无法存储 RADOS omap 数据结构。
+运行命令 ceph osd df 查看每个 OSD 上 omaps 使用的存储空间。
+请参阅 Eleanor Cawthon 2012 年的论文 A Distributed Key-Value Store using Ceph（17 页）。
+OpenStack Swift在 Ceph 的上下文中，OpenStack Swift 是 Ceph Object Store 支持的两个 API 之一。Ceph Object Store 支持的另一个 API 是 S3。
+请参阅 OpenStack Storage API 概述页面。

@@ -1,0 +1,374 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+  
+  
+  
+  
+  Architecture — Ceph Documentation
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    
+  
+  
+    
+      
+        
+        
+        
+        
+        
+        
+        
+    
+    
+    
+    
+    
+    
+     
+   
+  
+    
+  
+      
+      架构
+      
+            查看页面源
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+          
+            Ceph
+          
+  
+    
+    
+    
+  
+          
+        
+        
+        
+          
+            
+            
+              
+            
+            
+              
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+The Ceph Storage Cluster
+Storing Data
+Scalability and High Availability
+CRUSH Introduction
+Cluster Map
+High Availability Monitors
+High Availability Authentication
+Smart Daemons Enable Hyperscale
+Dynamic Cluster Management
+About Pools
+Mapping PGs to OSDs
+Calculating PG IDs
+Peering and Sets
+Rebalancing
+Data Consistency
+Erasure Coding
+Reading and Writing Encoded Chunks
+Interrupted Full Writes
+缓存分层
+Extending Ceph
+总结
+Ceph Protocol
+Native Protocol and librados
+Object Watch/Notify
+Data Striping
+Ceph Clients
+Ceph Object Storage
+Ceph 块设备
+Ceph 文件系统
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+            
+          
+        
+        
+      
+    
+    
+      
+      
+        
+           Ceph
+      
+        
+        
+        
+          
+           
+            
+  注意
+  本文档适用于 Ceph 的开发版本。
+  
+    报告文档错误
+  
+  
+  
+架构
+Ceph 独特地在一个统一系统中提供对象、块和文件存储。Ceph 高度可靠、易于管理且免费。Ceph 提供了卓越的可扩展性——数千个客户端访问 PB 到 EB 级别的数据。一个 Ceph 节点 利用商用硬件和智能守护程序，而一个 Ceph 存储集群 容纳大量节点，这些节点彼此通信以动态复制和重新分配数据。
+Ceph 存储集群
+Ceph 提供了一个基于 RADOS 的无限可扩展 Ceph 存储集群，RADOS 是一种可靠的分布式存储服务，它利用每个节点中的智能来保护其存储的数据并向 客户端 提供这些数据。请参阅 Sage Weil 的“The RADOS Object Store”博客文章以获取对 RADOS 的简要说明，并参阅 RADOS - A Scalable, Reliable Storage Service for Petabyte-scale Storage Clusters 以获取对 RADOS 的详尽说明。
+Ceph 存储集群由多种类型的守护程序组成
+Ceph Monitor
+Ceph OSD Daemon
+Ceph Manager
+Ceph Metadata Server
+Ceph Monitors 维护集群映射的主副本，并将其提供给 Ceph 客户端。Ceph 集群中存在多个 Monitor 可确保在其中一个 Monitor 守护程序或其主机发生故障时仍可继续使用。
+Ceph OSD Daemon 检查自身的以及其他 OSD 的状态，并向 Monitor 报告。
+Ceph Manager 用作监视、编排和插件模块的端点。
+Ceph Metadata Server (MDS) 在使用 CephFS 提供文件服务时管理文件元数据。
+存储集群客户端和 Ceph OSD Daemon 使用 CRUSH 算法来计算数据的位置信息。通过使用 CRUSH 算法，客户端和 OSD 避免了受制于中心查找表而导致的瓶颈。Ceph 的高级功能包括通过 librados 对 Ceph 存储集群的原生接口以及构建在 librados 之上的许多服务接口。
+存储数据
+Ceph 存储集群从 Ceph 客户端 接收数据——无论是通过 Ceph 块设备、Ceph 对象存储、Ceph 文件系统，还是通过使用 librados 创建的自定义实现。Ceph 存储集群接收到的数据以 RADOS 对象的格式存储。每个对象都存储在 Object Storage Device（也称为“OSD”）上。Ceph OSD 控制存储驱动器上的读取、写入和复制操作。默认的 BlueStore 后端以单片、类似数据库的方式存储对象。
+Ceph OSD Daemon 将数据作为对象存储在平面命名空间中。这意味着对象不存储在目录层次结构中。一个对象具有标识符、二进制数据和由名称/值对组成的元数据。Ceph 客户端 确定对象数据的语义。例如，CephFS 使用元数据来存储文件属性，例如文件所有者、创建日期和上次修改日期。
+注意
+对象 ID 在整个集群中是唯一的，而不仅仅是在本地文件系统中。
+可扩展性和高可用性
+在传统架构中，客户端与集中式组件通信。这个集中式组件可能是网关、代理、API 或外观。这种集中式组件充当复杂子系统的单点入口。依赖于此类集中式组件的架构具有单点故障，并会限制性能和可扩展性。如果集中式组件发生故障，整个系统将不可用。
+Ceph 消除了这个集中式组件。这使得客户端能够直接与 Ceph OSD 交互。Ceph OSD 在其他 Ceph 节点上创建对象副本以确保数据安全和高可用性。Ceph 还使用 Monitor 集群来确保高可用性。为了消除中心化，Ceph 使用一种称为 CRUSH 的算法。
+CRUSH 简介
+Ceph 客户端和 Ceph OSD Daemon 都使用 CRUSH 算法来计算对象位置信息，而不是依赖于中央查找表。CRUSH 提供了比旧方法更好的数据管理机制，并且通过将工作分配给集群中的所有 OSD 守护程序以及与它们通信的所有客户端，CRUSH 实现了大规模扩展。CRUSH 使用智能数据复制来确保弹性，这更适合超大规模存储。以下部分提供了有关 CRUSH 如何工作的更多详细信息。有关 CRUSH 的深入学术讨论，请参阅 CRUSH - Controlled, Scalable, Decentralized Placement of Replicated Data。
+集群映射
+为了使 Ceph 集群正常运行，Ceph 客户端和 Ceph OSD 必须具有有关集群拓扑的最新信息。最新信息存储在“集群映射”中，该集群映射实际上是五个映射的集合。构成集群映射的五个映射是
+Monitor Map： 包含集群 fsid、每个 Monitor 的位置、名称、地址和 TCP 端口。Monitor Map 指定当前纪元、Monitor Map 的创建时间和 Monitor Map 的上次修改时间。要查看 Monitor Map，请运行 ceph mon dump。
+OSD Map： 包含集群 fsid、OSD Map 的创建时间、OSD Map 的上次修改时间、池列表、副本大小列表、PG 编号列表以及 OSD 及其状态列表（例如，up、in）。要查看 OSD Map，请运行 ceph osd dump。
+PG Map： 包含 PG 版本、其时间戳、上一个 OSD Map 纪元、完整比率以及每个放置组的详细信息。这包括 PG ID、Up Set、Acting Set、PG 状态（例如，active + clean）以及每个池的数据使用统计信息。
+CRUSH Map： 包含存储设备列表、故障域层次结构（例如，device、host、rack、row、room）以及存储数据时遍历层次结构的规则。要查看 CRUSH Map，请运行 ceph osd getcrushmap -o {filename}，然后通过运行 crushtool -d {comp-crushmap-filename} -o {decomp-crushmap-filename} 对其进行反编译。使用文本编辑器或 cat 查看反编译的映射。
+MDS Map： 包含当前 MDS Map 纪元、创建时间和上次更改时间。它还包含用于存储元数据的池、元数据服务器列表以及哪些元数据服务器处于 up 和 in 状态。要查看 MDS Map，请执行 ceph fs dump。
+每个映射都维护其操作状态更改的历史记录。Ceph Monitors 维护集群映射的主副本。该主副本包括集群成员、集群状态、集群更改以及记录 Ceph 存储集群整体运行状况的信息。
+高可用性 Monitor
+Ceph 客户端必须联系 Ceph Monitor 并获取集群映射的当前副本才能从 Ceph 集群读取数据或向 Ceph 集群写入数据。
+Ceph 集群可以只使用单个 Monitor 正常运行，但只有一个 Monitor 的 Ceph 集群存在单点故障：如果该 Monitor 发生故障，Ceph 客户端将无法从集群读取数据或向集群写入数据。
+Ceph 利用 Monitor 集群来提高可靠性和容错能力。但是，当使用 Monitor 集群时，集群中的一个或多个 Monitor 可能会由于延迟或其他故障而落后。Ceph 通过要求多个 Monitor 实例就集群状态达成一致来减轻这些负面影响。为了在 Monitor 之间就集群状态达成共识，Ceph 使用 Paxos 算法和多数 Monitor（例如，仅包含一个 Monitor 的集群中的一个，包含三个 Monitor 的集群中的两个，包含五个 Monitor 的集群中的三个，包含六个 Monitor 的集群中的四个，依此类推）。
+有关配置 Monitor 的更多详细信息，请参阅 Monitor 配置参考。
+高可用性身份验证
+cephx 身份验证系统用于 Ceph 来对用户和守护程序进行身份验证，并防止中间人攻击。
+注意
+cephx 协议不涉及传输中的数据加密（例如 SSL/TLS）或静态数据加密。
+cephx 使用共享密钥进行身份验证。这意味着客户端和 Monitor 集群都保留了客户端密钥的副本。
+cephx 协议使得每一方都能够在不泄露密钥的情况下向对方证明自己拥有密钥副本。这提供了相互身份验证，并允许集群确认 (1) 用户拥有密钥，并且 (2) 用户可以确信集群拥有密钥副本。
+如 可扩展性和高可用性 中所述，Ceph 在客户端和 Ceph 对象存储之间没有任何集中式接口。通过避免这种集中式接口，Ceph 避免了伴随此类集中式接口而来的瓶颈。然而，这意味着客户端必须直接与 OSD 交互。Ceph 客户端和 OSD 之间的直接交互需要经过身份验证的连接。cephx 身份验证系统建立并维持这些经过身份验证的连接。
+cephx 协议的操作方式与 Kerberos 类似。
+用户调用 Ceph 客户端来联系 Monitor。与 Kerberos 不同，每个 Monitor 都可以对用户进行身份验证和分发密钥，这意味着在使用 cephx 时没有单点故障，也没有瓶颈。Monitor 返回一个类似于 Kerberos 票据的身份验证数据结构。此身份验证数据结构包含一个会话密钥，用于获取 Ceph 服务。会话密钥本身使用用户的永久密钥进行加密，这意味着只有用户才能从 Ceph Monitor 请求服务。然后，客户端使用会话密钥向 Monitor 请求服务，Monitor 向客户端提供一个票据，用于对实际处理数据的 OSD 进行身份验证。Ceph Monitor 和 OSD 共享一个密钥，这意味着客户端可以使用 Monitor 提供的票据对集群中的任何 OSD 或元数据服务器进行身份验证。
+与 Kerberos 票据一样，cephx 票据会过期。攻击者无法使用被秘密获取的过期票据或会话密钥。这种形式的身份验证可以防止访问通信介质的攻击者以另一个用户的身份创建虚假消息，并防止攻击者更改另一个用户的合法消息，前提是用户的密钥在过期之前没有泄露。
+管理员必须在使用 cephx 之前设置用户。在下图中，client.admin 用户从命令行调用 ceph auth get-or-create-key 来生成用户名和密钥。Ceph 的 auth 子系统生成用户名和密钥，在 Monitor 上存储一个副本，并将用户的密钥传回给 client.admin 用户。这意味着客户端和 Monitor 共享一个密钥。
+注意
+client.admin 用户必须以安全的方式向用户提供用户 ID 和密钥。
+以下是客户端如何与 Monitor 进行身份验证。客户端将用户名传递给 Monitor。Monitor 生成一个会话密钥，该密钥使用与 username 相关联的密钥进行加密。Monitor 将加密的票据传输给客户端。客户端使用共享密钥解密有效载荷。会话密钥标识用户，并且此身份标识将持续会话期间。客户端请求用户的票据，票据使用会话密钥签名。Monitor 生成一个票据并使用用户的密钥对其进行加密。加密的票据传输给客户端。客户端解密票据并使用它来对集群中的 OSD 和元数据服务器的请求进行签名。
+cephx 协议对客户端和 Ceph 守护程序之间正在进行的通信进行身份验证。在初始身份验证之后，客户端和守护程序之间发送的每条消息都使用一个票据进行签名，该票据可以通过 Monitor、OSD 和元数据守护程序进行验证。此票据通过使用客户端和守护程序之间共享的密钥进行验证。
+此身份验证仅保护 Ceph 客户端和 Ceph 守护程序之间的连接。身份验证不会扩展到 Ceph 客户端之外。如果用户从远程主机访问 Ceph 客户端，则 cephx 身份验证将不适用于用户主机和客户端主机之间的连接。
+有关配置详细信息，请参阅 CephX 配置参考。
+有关用户管理的更多信息，请参阅 用户管理。
+有关授权和身份验证之间区别的更多信息以及 cephx 票据和会话密钥设置的分步说明，请参阅 A Detailed Description of the Cephx Authentication Protocol。
+智能守护程序实现超大规模
+许多存储集群的一个特点是有一个集中式接口来跟踪客户端被允许访问的节点。这种集中式架构通过双重调度为客户端提供服务。在 PB 到 EB 级别，这种双重调度是一个重要的瓶颈。
+Ceph 避免了这种瓶颈：Ceph 的 OSD Daemon 和 Ceph 客户端都具有集群感知能力。与 Ceph 客户端一样，每个 Ceph OSD Daemon 都知道集群中的其他 Ceph OSD Daemon。这使得 Ceph OSD Daemon 能够直接与其他 Ceph OSD Daemon 交互，并直接与 Ceph Monitor 交互。具有集群感知能力使得 Ceph 客户端能够直接与 Ceph OSD Daemon 交互。
+由于 Ceph 客户端、Ceph Monitor 和 Ceph OSD 守护程序彼此直接交互，因此 Ceph OSD 守护程序可以利用 Ceph 集群中节点的聚合 CPU 和 RAM 资源。这意味着 Ceph 集群可以轻松执行具有集中式接口的集群难以执行的任务。Ceph 节点利用更大集群计算能力的能力提供了以下几个好处：
+OSD 直接服务客户端： 网络设备只能支持有限数量的并发连接。由于 Ceph 客户端直接联系 Ceph OSD 守护程序而无需先连接到中央接口，因此相对于包含中央接口的存储冗余策略，Ceph 享有更高的性能和增加的系统容量。Ceph 客户端仅在需要时维持会话，并且仅与特定的 Ceph OSD 守护程序维持会话，而不是与集中式接口维持会话。
+OSD 成员资格和状态：当 Ceph OSD Daemon 加入集群时，它们会报告其状态。在最低级别上，Ceph OSD Daemon 状态为 up 或 down：这反映了 Ceph OSD Daemon 是否正在运行并且能够为 Ceph 客户端请求提供服务。如果 Ceph OSD Daemon 处于 down 状态并且 in Ceph 存储集群中，则此状态可能表明 Ceph OSD Daemon 发生故障。如果 Ceph OSD Daemon 由于崩溃而未运行，则 Ceph OSD Daemon 无法通知 Ceph Monitor 它处于 down 状态。OSD 定期向 Ceph Monitor 发送消息（在 Luminous 之前的版本中，这是通过 MPGStats 完成的，从 Luminous 版本开始，这是通过 MOSDBeacon 完成的）。如果 Ceph Monitor 在可配置的一段时间后没有收到此类消息，则它们会将 OSD 标记为 down。然而，这种机制是一种故障保护。通常，Ceph OSD Daemon 会确定相邻 OSD 是否处于 down 状态，并将其报告给 Ceph Monitor。这有助于使 Ceph Monitor 成为轻量级进程。有关其他详细信息，请参阅 Monitoring OSDs 和 Heartbeats。
+数据擦洗： 为了保持数据一致性，Ceph OSD Daemon 会擦洗 RADOS 对象。Ceph OSD Daemon 将其本地对象的元数据与其存储在其他 OSD 上的对象副本的元数据进行比较。擦洗按每个 Placement Group 进行，查找对象大小不匹配和元数据不匹配，通常每天执行一次。Ceph OSD Daemon 通过将对象中的数据逐位与其校验和进行比较来执行深度擦洗。深度擦洗查找轻量擦洗无法检测到的驱动器上的坏扇区。有关配置擦洗的详细信息，请参阅 数据擦洗。
+复制： 数据复制涉及 Ceph 客户端和 Ceph OSD Daemon 之间的协作。Ceph OSD Daemon 使用 CRUSH 算法来确定对象副本的存储位置。Ceph 客户端使用 CRUSH 算法来确定对象的存储位置，然后将对象映射到池和放置组，然后客户端查阅 CRUSH Map 以确定放置组的主 OSD。
+在确定目标放置组后，客户端将对象写入所确定的放置组的主 OSD。然后，主 OSD 查阅其自己的 CRUSH Map 副本以确定辅助 OSD，将对象复制到这些辅助 OSD 中的放置组，确认对象已成功存储在辅助 OSD 中，并向客户端报告对象已成功存储。我们称这些复制操作为 subops。
+通过执行此数据复制，Ceph OSD Daemon 减轻了 Ceph 客户端及其网络接口复制数据的负担。
+动态集群管理
+在 可扩展性和高可用性 部分中，我们解释了 Ceph 如何使用 CRUSH、集群拓扑和智能守护程序来扩展和维护高可用性。Ceph 设计的关键是自治、自我修复和智能的 Ceph OSD Daemon。让我们深入了解 CRUSH 如何工作，以使现代云存储基础设施能够放置数据、重新平衡集群以及自适应地放置和平衡数据以及从故障中恢复。
+关于池
+Ceph 存储系统支持“池”的概念，池是用于存储对象的逻辑分区。
+Ceph 客户端从 Ceph Monitor 检索 集群映射，并将 RADOS 对象写入池。Ceph 在池中放置数据的方式由池的 size 或副本数、CRUSH 规则以及池中的放置组数决定。
+池至少设置以下参数
+对象的所有权/访问权限
+放置组的数量
+要使用的 CRUSH 规则。
+有关详细信息，请参阅 设置池值。
+将 PG 映射到 OSD
+每个池中都有许多放置组 (PG)。CRUSH 动态地将 PG 映射到 OSD。当 Ceph 客户端存储对象时，CRUSH 将每个 RADOS 对象映射到一个 PG。
+这种 RADOS 对象到 PG 的映射实现了 Ceph OSD Daemon 和 Ceph 客户端之间的抽象和间接层。当内部拓扑发生变化时，Ceph 存储集群必须能够增长（或收缩）并自适应地重新分配数据。
+如果 Ceph 客户端“知道”哪个 Ceph OSD Daemon 正在存储哪个对象，那么 Ceph 客户端和 Ceph OSD Daemon 之间就会存在紧密耦合。但是 Ceph 避免了这种紧密耦合。相反，CRUSH 算法将每个 RADOS 对象映射到放置组，然后将每个放置组映射到一个或多个 Ceph OSD Daemon。当新的 Ceph OSD Daemon 及其底层 OSD 设备上线时，这种“间接层”允许 Ceph 动态地重新平衡。下图显示了 CRUSH 算法如何将对象映射到放置组，以及如何将放置组映射到 OSD。
+客户端使用其集群映射副本和 CRUSH 算法来精确计算读取或写入特定对象时将使用哪个 OSD。
+计算 PG ID
+当 Ceph 客户端绑定到 Ceph Monitor 时，它会检索最新版本的 集群映射。当客户端配备了集群映射的最新版本副本时，它就知道集群中的所有 Monitor、OSD 和元数据服务器。然而，即使配备了集群映射最新版本的副本，客户端也不知道任何对象位置。
+对象位置必须计算出来。
+客户端只需要对象 ID 和池名称即可计算对象位置。
+Ceph 将数据存储在命名池中（例如，“liverpool”）。当客户端存储命名对象（例如，“john”、“paul”、“george”或“ringo”）时，它使用对象名称、哈希码、池中的 PG 数和池名称来计算放置组。Ceph 客户端使用以下步骤来计算 PG ID。
+客户端输入池名称和对象 ID。（例如：pool = “liverpool” 和 object-id = “john”）
+Ceph 对对象 ID 进行哈希处理。
+Ceph 计算哈希值，对 PG 数取模（例如：58），以获取 PG ID。
+Ceph 使用池名称检索池 ID：（例如：“liverpool” = 4）
+Ceph 将池 ID 添加到 PG ID 前面（例如：4.58）。
+计算对象位置比通过繁忙的会话执行对象位置查询要快得多。CRUSH 算法允许客户端计算对象预计存储在哪里，并使客户端能够联系主 OSD 来存储或检索对象。
+Peering 和 Sets
+在前面的部分中，我们注意到 Ceph OSD Daemon 检查彼此的心跳并向 Ceph Monitor 报告。Ceph OSD 守护程序还会进行“对等互连”（peering），这是一个使存储 Placement Group (PG) 的所有 OSD 就该 PG 中所有 RADOS 对象（及其元数据）的状态达成一致的过程。Ceph OSD Daemon 向 Ceph Monitor 报告对等互连故障。对等互连问题通常会自行解决；但是，如果问题仍然存在，您可能需要参考 故障排除对等互连故障 部分。
+注意
+就集群状态达成一致的 PG 不一定具有当前数据。
+Ceph 存储集群设计为至少存储两个对象副本（即 size = 2），这是数据安全性的最低要求。为了实现高可用性，Ceph 存储集群应存储两个以上的对象副本（即 size = 3 和 min size = 2），以便在保持数据安全性的同时继续以 degraded 状态运行。
+警告
+尽管我们在这里说 R2（双副本复制）是数据安全的最低要求，但建议使用 R3（三副本复制）。在足够长的时间线上，使用 R2 策略存储的数据将会丢失。
+正如 智能守护程序实现超大规模 中的图表所解释的那样，我们没有明确命名 Ceph OSD Daemon（例如，osd.0、osd.1 等），而是将它们称为Primary、Secondary 等。按照惯例，Primary 是 Acting Set 中的第一个 OSD，负责协调它作为 Primary 的每个放置组的对等互连过程。Primary 是给定放置组中唯一接受客户端发起的对象写入的 OSD。
+负责放置组的 OSD 集合称为 Acting Set。“Acting Set”一词可以指当前负责放置组的 Ceph OSD Daemon，也可以指在某个纪元负责特定放置组的 Ceph OSD Daemon。
+作为 Acting Set 一部分的 Ceph OSD Daemon 可能并不总是处于 up 状态。当 Acting Set 中的 OSD 处于 up 状态时，它是 Up Set 的一部分。Up Set 是一个重要的区别，因为当 OSD 发生故障时，Ceph 可以将 PG 重新映射到其他 Ceph OSD Daemon。
+注意
+考虑一个包含 osd.25、osd.32 和 osd.61 的 PG 的假设 Acting Set。第一个 OSD (osd.25) 是 Primary。如果该 OSD 发生故障，则 Secondary (osd.32) 成为 Primary，并且 osd.25 将从 Up Set 中移除。
+重新平衡
+当您将 Ceph OSD Daemon 添加到 Ceph 存储集群时，集群映射会使用新的 OSD 进行更新。参考 计算 PG ID，这会更改集群映射。因此，它会更改对象放置，因为它会更改计算的输入。下图描绘了重新平衡过程（尽管相当粗糙，因为在大集群中影响要小得多），其中一些（但不是全部）PG 从现有 OSD（OSD 1 和 OSD 2）迁移到新的 OSD（OSD 3）。即使在重新平衡时，CRUSH 也是稳定的。许多放置组保持其原始配置，并且每个 OSD 获得一些额外的容量，因此在重新平衡完成后，新 OSD 上没有负载峰值。
+数据一致性
+作为维护数据一致性和清洁度的一部分，Ceph OSD 还会擦洗放置组中的对象。也就是说，Ceph OSD 将一个放置组中的对象元数据与存储在其他 OSD 中的放置组中的副本进行比较。擦洗（通常每天执行）会捕获 OSD 错误或文件系统错误，这通常是由于硬件问题造成的。OSD 还会执行更深层次的擦洗，通过将对象中的数据逐位与其校验和进行比较。深度擦洗（默认每周执行）会查找驱动器上在轻量擦洗中不明显的坏块。
+有关配置擦洗的详细信息，请参阅 数据擦洗。
+纠删码
+一个纠删码池将每个对象存储为 K+M 个块。它被分为 K 个数据块和 M 个编码块。池被配置为具有 K+M 大小，以便每个块存储在 Acting Set 中的 OSD 中。块的排名作为对象的属性存储。
+例如，可以创建一个纠删码池，使用五个 OSD（K+M = 5）并承受其中两个 OSD 的丢失（M = 2）。在恢复 (K+1) 个分片之前，数据可能不可用。
+读取和写入编码块
+当包含 ABCDEFGHI 的对象 NYAN 写入池时，纠删编码函数通过简单地将内容分为三部分来拆分内容：第一部分包含 ABC，第二部分包含 DEF，最后一部分包含 GHI。如果内容长度不是 K 的倍数，则内容将填充。该函数还创建了两个编码块：第四个包含 YXY，第五个包含 QGC。每个块都存储在 Acting Set 中的 OSD 中。这些块存储在具有相同名称 (NYAN) 但位于不同 OSD 上的对象中。块的创建顺序必须保留并存储为对象的属性 (shard_t)，除了它的名称之外。块 1 包含 ABC 并存储在 OSD5 上，而块 4 包含 YXY 并存储在 OSD3 上。
+当从纠删码池中读取对象 NYAN 时，解码函数读取三个块：块 1 包含 ABC，块 3 包含 GHI，块 4 包含 YXY。然后，它重建对象的原始内容 ABCDEFGHI。解码函数被告知块 2 和块 5 缺失（它们被称为“擦除”）。块 5 无法读取，因为 OSD4 宕机了。一旦读取三个块，就可以调用解码函数：OSD2 最慢，它的块没有被考虑在内。
+中断的完整写入
+在纠删码池中，Up Set 中的主 OSD 接收所有写入操作。它负责将有效载荷编码为 K+M 个块并将其发送给其他 OSD。它还负责维护放置组日志的权威版本。
+在下图中，创建了一个纠删码放置组，其中 K = 2, M = 1，由三个 OSD 支持，两个用于 K，一个用于 M。放置组的 Acting Set 由 OSD 1、OSD 2 和 OSD 3 组成。对象已编码并存储在 OSD 中：块 D1v1（即数据块编号 1，版本 1）位于 OSD 1 上，D2v1 位于 OSD 2 上，C1v1（即编码块编号 1，版本 1）位于 OSD 3 上。每个 OSD 上的放置组日志都相同（即纪元 1，版本 1 为 1,1）。
+OSD 1 是主 OSD，并从客户端接收 WRITE FULL，这意味着有效载荷将完全替换对象，而不是覆盖对象的一部分。创建对象版本 2 (v2) 以覆盖版本 1 (v1)。OSD 1 将有效载荷编码为三个块：D1v2（即数据块编号 1 版本 2）将位于 OSD 1 上，D2v2 位于 OSD 2 上，C1v2（即编码块编号 1 版本 2）位于 OSD 3 上。每个块都被发送到目标 OSD，包括主 OSD，主 OSD 除了处理写入操作和维护放置组日志的权威版本之外，还负责存储块。当 OSD 收到指示其写入块的消息时，它还会创建放置组日志中的新条目以反映更改。例如，一旦 OSD 3 存储 C1v2，它就会将条目 1,2（即纪元 1，版本 2）添加到其日志中。由于 OSD 异步工作，一些块可能仍在传输中（例如 D2v2），而其他块已被确认并持久化到存储驱动器（例如 C1v1 和 D1v1）。
+如果一切顺利，这些块将在 Acting Set 中的每个 OSD 上得到确认，并且日志的 last_complete 指针可以从 1,1 移动到 1,2。
+最后，可移除用于存储对象先前版本块的文件：OSD 1 上的 D1v1、OSD 2 上的 D2v1 和 OSD 3 上的 C1v1。
+但意外发生了。如果 OSD 1 在 D2v2 仍在传输时宕机，则对象版本 2 部分写入：OSD 3 有一个块，但这不足以恢复。它丢失了两个块：D1v2 和 D2v2，纠删码参数 K = 2、M = 1 要求至少有两个块可用才能重建第三个块。OSD 4 成为新的主 OSD，并发现 last_complete 日志条目（即，此条目之前的所有对象都已知在先前 Acting Set 中的所有 OSD 上可用）为 1,1，这将是新的权威日志的头。.
+在 OSD 3 上找到的日志条目 1,2 与 OSD 4 提供的新权威日志不同：它被丢弃，包含 C1v2 块的文件被移除。在擦洗过程中，使用纠删码库的 decode 函数重建 D1v1 块并存储在新的主 OSD OSD 4 上。
+有关其他详细信息，请参阅 Erasure Code Notes。
+缓存分层
+注意
+缓存分层在 Reef 版本中已弃用。
+缓存层为 Ceph 客户端提供对存储在后端存储层中的部分数据的更好 I/O 性能。缓存分层涉及创建一个配置为充当缓存层的相对较快/昂贵的存储设备（例如，固态驱动器）池，以及一个配置为充当经济型存储层的纠删码或相对较慢/便宜的设备后端池。Ceph 对象器处理放置对象的位置，分层代理确定何时将对象从缓存刷新到后端存储层。因此，缓存层和后端存储层对 Ceph 客户端完全透明。
+有关其他详细信息，请参阅 缓存分层。请注意，缓存层可能很棘手，现在不鼓励使用。
+扩展 Ceph
+您可以通过创建名为“Ceph 类”的共享对象类来扩展 Ceph。Ceph 动态加载存储在 osd class dir 目录中的 .so 类（即默认情况下为 $libdir/rados-classes）。当您实现一个类时，您可以创建新的对象方法，这些方法能够调用 Ceph 对象存储中的原生方法，或通过库包含或自己创建的其他类方法。
+在写入时，Ceph 类可以调用原生或类方法，对入站数据执行任何系列操作，并生成 Ceph 将原子地应用的生成的写入事务。
+在读取时，Ceph 类可以调用原生或类方法，对出站数据执行任何系列操作，并将数据返回给客户端。
+Ceph 类示例
+用于内容管理系统的 Ceph 类，用于显示特定大小和纵横比的图片，可以采用入站位图图像，将其裁剪为特定的纵横比，调整大小并嵌入不可见的版权或水印以帮助保护知识产权；然后，将生成的位图图像保存到对象存储中。
+有关示例实现，请参阅 src/objclass/objclass.h、src/fooclass.cc 和 src/barclass。
+总结
+Ceph 存储集群是动态的——就像一个活的有机体。尽管许多存储设备没有充分利用典型商用服务器的 CPU 和 RAM，但 Ceph 却利用了。从心跳到对等互连，再到重新平衡集群或从故障中恢复，Ceph 将工作从客户端（以及 Ceph 架构中不存在的集中式网关）卸载，并使用 OSD 的计算能力来执行工作。在参考 硬件推荐 和 网络配置参考 时，请注意上述概念，以了解 Ceph 如何利用计算资源。
+Ceph 协议
+Ceph 客户端使用原生协议与 Ceph 存储集群交互。Ceph 将此功能打包到 librados 库中，以便您可以创建自己的自定义 Ceph 客户端。下图描绘了基本架构。
+原生协议和 librados
+现代应用程序需要一个具有异步通信功能的简单对象存储接口。Ceph 存储集群提供了具有异步通信功能的简单对象存储接口。该接口提供对整个集群中对象的直接、并行访问。
+池操作
+快照和写时复制克隆
+读取/写入对象 - 创建或删除 - 整个对象或字节范围 - 追加或截断
+创建/设置/获取/删除 XATTR
+创建/设置/获取/删除键/值对
+复合操作和双重确认语义
+对象类
+对象 Watch/Notify
+客户端可以向对象注册持久兴趣，并保持与主 OSD 的会话打开。客户端可以向所有观察者发送通知消息和有效载荷，并在观察者收到通知时接收通知。这使得客户端能够使用任何对象作为同步/通信通道。
+数据分条
+存储设备具有吞吐量限制，这会影响性能和可扩展性。因此，存储系统通常支持分条——将连续的信息片段存储在多个存储设备上——以提高吞吐量和性能。最常见的数据分条形式来自 RAID。与 Ceph 分条最相似的 RAID 类型是 RAID 0，或“分条卷”。Ceph 的分条提供了 RAID 0 分条的吞吐量、n-way RAID 镜像的可靠性和更快的恢复。
+Ceph 提供三种类型的客户端：Ceph Block Device、Ceph File System 和 Ceph Object Storage。Ceph 客户端将其提供给用户的数据表示格式（块设备镜像、RESTful 对象、CephFS 文件系统目录）转换为对象，以便存储在 Ceph 存储集群中。
+提示
+Ceph 存储在 Ceph 存储集群中的对象没有分条。Ceph Object Storage、Ceph Block Device 和 Ceph File System 将其数据分条到多个 Ceph 存储集群对象上。通过 librados 直接写入 Ceph 存储集群的 Ceph 客户端必须自己执行分条（和并行 I/O）才能获得这些好处。
+最简单的 Ceph 分条格式涉及 1 个对象的分条计数。Ceph 客户端将分条单元写入 Ceph 存储集群对象，直到对象达到其最大容量，然后为额外的数据分条创建另一个对象。最简单的分条形式可能足以满足小型块设备镜像、S3 或 Swift 对象和 CephFS 文件。然而，这种简单的形式并没有最大限度地利用 Ceph 将数据分布到放置组的能力，因此并没有显着提高性能。下图描绘了最简单的分条形式
+如果您预计有大型镜像大小、大型 S3 或 Swift 对象（例如视频）或大型 CephFS 目录，通过将客户端数据分条到对象集中的多个对象上，您可能会看到可观的读取/写入性能改进。当客户端并行地将其分条单元写入其相应的对象时，会产生显着的写入性能。由于对象被映射到不同的放置组并进一步映射到不同的 OSD，因此每次写入都以最大写入速度并行发生。对单个驱动器的写入将受到该单个设备的磁头移动（例如每次查找 6 毫秒）和带宽（例如 100MB/s）的限制。通过将该写入分散到多个对象（映射到不同的放置组和 OSD），Ceph 可以减少每个驱动器的查找次数，并结合多个驱动器的吞吐量以实现更快的写入（或读取）速度。
+注意
+分条独立于对象副本。由于 CRUSH 在 OSD 之间复制对象，因此分条会自动复制。
+在下图中，客户端数据被分条到由 4 个对象组成的对象集（下图中的 object set 1）上，其中第一个分条单元是 object 0 中的 stripe unit 0，第四个分条单元是 object 3 中的 stripe unit 3。写入第四个分条后，客户端确定对象集是否已满。如果对象集未满，客户端将开始再次将分条写入第一个对象（下图中的 object 0）。如果对象集已满，客户端将创建新的对象集（下图中的 object set 2），并开始将分条写入新对象集中的第一个分条（stripe unit 16）中的第一个对象（下图中的 object 4）。
+三个重要变量决定 Ceph 如何分条数据
+对象大小： Ceph 存储集群中的对象具有可配置的最大大小（例如 2MB、4MB 等）。对象大小应足够大以容纳多个分条单元，并且应是分条单元的倍数。
+分条宽度： 分条具有可配置的单元大小（例如 64kb）。Ceph 客户端将要写入对象的数据分成大小相等的分条单元，除了最后一个分条单元。分条宽度应是对象大小的一部分，以便一个对象可以包含多个分条单元。
+分条计数： Ceph 客户端将一系列分条单元写入由分条计数确定的一系列对象。这一系列对象称为对象集。在 Ceph 客户端写入对象集中的最后一个对象后，它会返回到对象集中的第一个对象。
+重要
+在将集群投入生产之前，请测试您的分条配置的性能。在分条数据并将其写入对象之后，您无法更改这些分条参数。
+一旦 Ceph 客户端将数据分条到分条单元并将分条单元映射到对象，Ceph 的 CRUSH 算法就会将对象映射到放置组，并将放置组映射到 Ceph OSD Daemon，然后将对象存储为存储驱动器上的文件。
+注意
+由于客户端写入单个池，因此分条到对象中的所有数据都会映射到同一池中的放置组。因此它们使用相同的 CRUSH Map 和相同的访问控制。
+Ceph 客户端
+Ceph 客户端包括许多服务接口。其中包括
+块设备： Ceph Block Device（又名 RBD）服务提供可调整大小、精简配置的块设备，可以创建快照和克隆。Ceph 在整个集群中分条块设备以实现高性能。Ceph 支持内核对象 (KO) 和使用 librbd 直接的 QEMU 虚拟机管理程序——避免了虚拟化系统的内核对象开销。
+对象存储： Ceph Object Storage（又名 RGW）服务提供 RESTful API，其接口与 Amazon S3 和 OpenStack Swift 兼容。
+文件系统：Ceph File System (CephFS) 服务提供 POSIX 兼容的文件系统，可用于 mount 或作为用户空间文件系统 (FUSE)。
+Ceph 可以运行额外的 OSD、MDS 和 Monitor 实例以实现可扩展性和高可用性。下图描绘了高级架构。
+Ceph 对象存储
+Ceph 对象存储守护程序 radosgw 是一种 FastCGI 服务，提供 RESTful HTTP API 来存储对象和元数据。它位于 Ceph 存储集群之上，具有自己的数据格式，并维护自己的用户数据库、身份验证和访问控制。RADOS 网关使用统一命名空间，这意味着您可以使用与 OpenStack Swift 兼容的 API 或与 Amazon S3 兼容的 API。例如，您可以使用 S3 兼容的 API 写入数据，然后使用 Swift 兼容的 API 读取数据。
+S3/Swift 对象和存储集群对象比较
+Ceph 的对象存储使用术语“对象”来描述它存储的数据。S3 和 Swift 对象与 Ceph 写入 Ceph 存储集群的对象不同。Ceph 对象存储对象映射到 Ceph 存储集群对象。S3 和 Swift 对象不一定与存储在存储集群中的对象以 1:1 的方式对应。一个 S3 或 Swift 对象可能映射到多个 Ceph 对象。
+有关详细信息，请参阅 Ceph Object Gateway。
+Ceph 块设备
+Ceph 块设备将块设备镜像分条到 Ceph 存储集群中的多个对象上，其中每个对象都映射到一个放置组并进行分布，并且放置组分散在整个集群中的单独 ceph-osd 守护程序上。
+重要
+分条允许 RBD 块设备比单个服务器表现更好！
+精简配置的可快照 Ceph 块设备是虚拟化和云计算的一个有吸引力的选择。在虚拟机场景中，人们通常在 QEMU/KVM 中部署带有 rbd 网络存储驱动程序的 Ceph 块设备，其中主机使用 librbd 为来宾提供块设备服务。许多云计算堆栈使用 libvirt 与虚拟机管理程序集成。您可以将精简配置的 Ceph 块设备与 QEMU 和 libvirt 一起使用，以支持 OpenStack、OpenNebula 和 CloudStack 等解决方案。
+虽然我们目前不提供对其他虚拟机管理程序的 librbd 支持，但您也可以使用 Ceph 块设备内核对象向客户端提供块设备。其他虚拟化技术（例如 Xen）可以访问 Ceph 块设备内核对象。这是通过命令行工具 rbd 完成的。
+Ceph 文件系统
+Ceph 文件系统 (CephFS) 提供一个 POSIX 兼容的文件系统作为服务，该服务位于基于对象的 Ceph 存储集群之上。CephFS 文件映射到 Ceph 存储在 Ceph 存储集群中的对象。Ceph 客户端将 CephFS 文件系统作为内核对象或作为用户空间文件系统 (FUSE) 挂载。
+Ceph 文件系统服务包括随 Ceph 存储集群部署的 Ceph Metadata Server (MDS)。MDS 的目的是将所有文件系统元数据（目录、文件所有权、访问模式等）存储在高可用性 Ceph Metadata Server 中，其中元数据驻留在内存中。需要 MDS（一个名为 ceph-mds 的守护程序）的原因是，简单的文件系统操作（例如列出目录或更改目录 (ls、cd)）会不必要地占用 Ceph OSD Daemon。因此，将元数据与数据分离意味着 Ceph 文件系统可以提供高性能服务，而不会占用 Ceph 存储集群。
+CephFS 将元数据与数据分离，元数据存储在 MDS 中，文件数据存储在 Ceph 存储集群中的一个或多个对象中。Ceph 文件系统旨在实现 POSIX 兼容性。ceph-mds 可以作为单个进程运行，也可以分发到多台物理机器上，以实现高可用性或可伸缩性。
+高可用性：额外的 ceph-mds 实例可以是 standby（备用），随时准备接管任何发生故障的 active（活动）ceph-mds 的职责。这很容易实现，因为所有数据（包括日志）都存储在 RADOS 上。转换由 ceph-mon 自动触发。
+可伸缩性：多个 ceph-mds 实例可以处于 active 状态，它们会将目录树分割成子树（以及单个繁忙目录的分片），从而有效地平衡所有 active 服务器之间的负载。
+standby 和 active 等状态可以组合使用，例如运行 3 个 active ceph-mds 实例用于扩展，并运行一个 standby 实例用于高可用性。
+  由 Ceph 基金会为您呈现
+  Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+           
+           
+          
+          
+         Previous Next 
+  
+  
+    © 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+  
+   
+        
+      
+    
+  
+  
+  
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  
+  
+   

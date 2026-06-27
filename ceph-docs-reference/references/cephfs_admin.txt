@@ -1,0 +1,262 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+CephFS 管理命令 — Ceph 文档
+Ceph 文件系统
+CephFS 管理命令
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+CephFS 入门
+管理
+创建 CephFS 文件系统
+管理命令
+文件系统
+设置
+最大文件大小和性能
+关闭集群
+为删除或灾难恢复快速关闭集群
+守护程序
+所需的客户端特性
+全局设置
+高级
+创建多个文件系统
+配置/添加/删除 MDS
+术语
+引用 MDS 守护进程
+管理故障转移
+配置备用重放
+配置 MDS 文件系统亲和性
+MDS 缓存配置
+MDS 配置设置
+手册：ceph-mds
+通过 NFS 导出
+应用程序最佳实践
+FS 卷和子卷
+CephFS 配额
+健康信息
+升级 MDS 集群
+将 Firefly 之前的文件系统升级到 Jewel 之后
+CephFS Top 实用程序
+计划快照
+CephFS 快照镜像
+清除队列
+挂载 CephFS
+CephFS 概念
+故障排除和灾难恢复
+开发人员指南
+其他详细信息
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+CephFS 管理命令
+文件系统
+注意
+文件系统、元数据池和数据池的名称只能包含 [a-zA-Z0-9_-. ] 集合中的字符。
+这些命令对 Ceph 集群中的 CephFS 文件系统进行操作。请注意，默认情况下只允许一个文件系统：要启用创建多个文件系统，请使用 ceph fs flag set enable_multiple true。
+ceph fs new &lt;file system name&gt; &lt;metadata pool name&gt; &lt;data pool name&gt;
+此命令创建一个新文件系统。文件系统名称和元数据池名称不言自明。指定的数据池是默认数据池，设置后无法更改。每个文件系统都有自己的一组分配给排名的 MDS 守护程序，因此请确保您有足够的备用守护程序来容纳新文件系统。
+ceph fs ls
+按名称列出所有文件系统。
+ceph fs lsflags &lt;file system name&gt;
+列出文件系统上设置的所有标志。
+ceph fs dump [epoch]
+这会转储给定纪元（默认值：当前）的 FSMap，其中包括所有文件系统设置、MDS 守护程序及其持有的排名，以及备用 MDS 守护程序的列表。
+ceph fs rm &lt;file system name&gt; [--yes-i-really-mean-it]
+销毁 CephFS 文件系统。这会清除 FSMap 中有关文件系统状态的信息。元数据池和数据池未被触动，必须单独销毁。
+ceph fs get &lt;file system name&gt;
+获取有关命名文件系统的信息，包括设置和排名。这是 ceph fs dump 命令中相同信息的子集。
+ceph fs set &lt;file system name&gt; &lt;var&gt; &lt;val&gt; [--yes-i-really-mean-it]
+更改文件系统上的设置。这些设置特定于命名文件系统，不影响其他文件系统。仅当集群不健康时更改 max_mds 时才需要确认标志。
+注意
+当集群不健康时，修改 FS 设置变量 max_mds 必须传递确认标志 (--yes--i-really-mean-it)。这已作为一项预防措施添加，旨在告知用户在故障排除或恢复期间修改 max_mds 可能没有帮助。相反，它可能会使集群进一步不稳定。
+ceph fs add_data_pool &lt;file system name&gt; &lt;pool name/id&gt;
+向文件系统添加数据池。此池可用作文件布局的备用位置来存储文件数据。
+ceph fs rm_data_pool &lt;file system name&gt; &lt;pool name/id&gt;
+此命令从文件系统的数据池列表中删除指定的池。如果任何文件具有已删除数据池的布局，则文件数据将变为不可用。默认数据池（创建文件系统时）无法删除。
+ceph fs rename &lt;file system name&gt; &lt;new file system name&gt; [--yes-i-really-mean-it]
+重命名 Ceph 文件系统。这也会将文件系统的数据池和元数据池上的应用程序标签更改为新的文件系统名称。授权给旧文件系统名称的 CephX ID 需要重新授权给新名称。使用这些 ID 的客户端正在进行的操作可能会中断。镜像预计将在文件系统上禁用。
+fs swap &lt;fs1-name&gt; &lt;fs1_id&gt; &lt;fs2-name&gt; &lt;fs2_id&gt; [--swap-fscids=yes|no] [--yes-i-really-mean-it]
+交换两个 Ceph 文件系统的名称并相应地更新两个 FS 的所有池上的应用程序标签。某些除了 FS 名称之外还跟踪文件系统 FSCID 的工具可能会因此操作而混淆。因此，提供了强制选项 --swap-fscids，必须使用该选项来指示是否必须交换 FSCID。
+注意
+FSCID 代表“文件系统集群 ID”。
+在交换之前，应在两个 CephFS 上禁用镜像（因为 cephfs-mirror 守护程序在内部使用 fscid，并且在守护程序运行时更改它可能会导致未定义的行为），两个 CephFS 都应处于脱机状态，并且必须为两个 CephFS 设置文件系统标志 refuse_client_sessions。
+此 API 的功能是促进灾难恢复，其中从前一个文件系统重建的新文件系统已准备好接管可能受损的文件系统。操作员可以使用交换而不是两次 fs rename 操作，因此不会存在主（或生产）命名文件系统不存在的 FSMap 纪元。当 Ceph 由自动存储操作员（如 Rook）监控时，这很重要，因为它们会尝试持续协调存储系统。该操作员可能会在文件系统被视为不存在时立即尝试重新创建它。
+交换后，如果现有挂载应“跟随”旧文件系统到其新名称，则可能需要重新授权 CephX 凭据。通常，对于灾难恢复，希望现有挂载继续使用相同的文件系统名称。任何活动的任一 CephFS 文件系统挂载都必须重新挂载。现有未刷新的操作将丢失。当判断其中一个交换的文件系统已准备好供客户端使用时，运行
+ceph fs set &lt;fs&gt; joinable true
+ceph fs set &lt;fs&gt; refuse_client_sessions false
+请记住，如果进行灾难恢复交换，其中一个交换的文件系统可能会保持脱机状态以供将来分析。
+设置
+ceph fs set &lt;fs name&gt; max_file_size &lt;size in bytes&gt;
+CephFS 具有可配置的最大文件大小，默认为 1TB。如果您希望在 CephFS 中存储大文件，您可能希望将此限制设置得更高。它是一个 64 位字段。
+将 max_file_size 设置为 0 不会禁用限制。它只会将客户端限制为只能创建空文件。
+最大文件大小和性能
+CephFS 在追加文件或设置文件大小时强制执行最大文件大小限制。它不影响任何东西的存储方式。
+当用户创建一个巨大大小的文件（不一定向其中写入任何数据）时，某些操作（例如删除）会导致 MDS 必须执行大量操作来检查在可能存在（根据文件大小）的范围内是否存在任何 RADOS 对象。
+max_file_size 设置可防止用户创建看起来大小为例如 exabytes 的文件，从而导致 MDS 在尝试在统计信息或删除等操作期间枚举对象时产生负载。
+关闭集群
+通过设置 down 标志来关闭 CephFS 集群
+ceph fs set &lt;fs_name&gt; down true
+要使集群重新联机
+ceph fs set &lt;fs_name&gt; down false
+这还将恢复 max_mds 的先前值。MDS 守护程序以一种方式关闭，即日志刷新到元数据池并且所有客户端 I/O 停止。
+为删除或灾难恢复快速关闭集群
+为了允许快速删除文件系统（用于测试）或快速关闭文件系统和 MDS 守护程序，请使用 ceph fs fail 命令
+ceph fs fail &lt;fs_name&gt; {--yes-i-really-mean-it}
+注意
+请注意，确认标志是可选的，因为它仅在 MDS 处于活动状态并具有健康警告 MDS_TRIM 或 MDS_CACHE_OVERSIZED 时才需要。
+此命令设置文件系统标志以防止备用机在文件系统上激活（joinable 标志）。
+此过程也可以通过执行以下操作手动完成
+ceph fs set &lt;fs_name&gt; joinable false
+然后操作员可以使所有排名失败，这会导致 MDS 守护程序作为备用机重新生成。文件系统将处于降级状态。
+# For all ranks, 0-N:
+ceph mds fail &lt;fs_name&gt;:&lt;n&gt; {--yes-i-really-mean-it}
+注意
+请注意，确认标志是可选的，因为它仅在 MDS 处于活动状态并具有健康警告 MDS_TRIM 或 MDS_CACHE_OVERSIZED 时才需要。
+一旦所有排名都处于非活动状态，文件系统也可以被删除或保持此状态用于其他目的（可能是灾难恢复）。
+要使集群重新启动，只需设置 joinable 标志
+ceph fs set &lt;fs_name&gt; joinable true
+守护程序
+大多数操作 MDS 的命令都采用 &lt;role&gt; 参数，该参数可以采用以下三种形式之一
+&lt;fs_name&gt;:&lt;rank&gt;
+&lt;fs_id&gt;:&lt;rank&gt;
+&lt;rank&gt;
+操作 MDS 守护程序的命令
+ceph mds fail &lt;gid/name/role&gt;
+将 MDS 守护程序标记为失败。这等同于如果 MDS 守护程序未能在 mds_beacon_grace 秒内向 mon 发送消息时集群会执行的操作。如果守护程序处于活动状态并且有合适的备用机可用，则使用 ceph mds fail 将强制故障转移到备用机。
+如果 MDS 守护程序实际上仍在运行，则使用 ceph mds fail 将导致守护程序重新启动。如果它处于活动状态并且有备用机可用，则“失败”的守护程序将作为备用机返回。
+ceph tell mds.&lt;daemon name&gt; command ...
+向 MDS 守护程序发送命令。使用 mds.* 向所有守护程序发送命令。使用 ceph tell mds.* help 了解可用命令。
+ceph mds metadata &lt;gid/name/role&gt;
+获取关于监视器知道的给定 MDS 的元数据。
+ceph mds repaired &lt;role&gt;
+将文件系统排名标记为已修复。与名称所暗示的不同，此命令不会更改 MDS；它操作已被标记为损坏的文件系统排名。
+ceph mds last-seen &lt;name&gt;
+了解名为 name 的 MDS 最后一次出现在 FSMap 中的时间。JSON 输出包括最后一次看到 MDS 的纪元。历史信息受以下 mon 配置限制
+mon_fsmap_prune_threshold
+监视器将历史 fsmaps 保留在内存中，以优化询问 MDS 守护程序最后一次在 FSMap 中看到的时间。此选项控制监视器将回溯多长时间。
+类型:
+秒
+默认值:
+300
+所需的客户端特性
+有时需要设置客户端必须支持才能与 CephFS 通信的特性。没有这些特性的客户端可能会干扰其他客户端或以令人惊讶的方式运行。或者，您可能需要较新的特性来防止较旧且可能有错误的客户端连接。
+操作文件系统的所需客户端特性的命令
+ceph fs required_client_features &lt;fs name&gt; add reply_encoding
+ceph fs required_client_features &lt;fs name&gt; rm reply_encoding
+列出所有 CephFS 特性
+ceph fs feature ls
+缺少新添加特性的客户端将自动被逐出。
+以下是当前的 CephFS 特性及其首次发布的版本
+功能
+Ceph 发布版本
+上游内核
+jewel
+jewel
+4.5
+kraken
+kraken
+4.13
+luminous
+luminous
+4.13
+mimic
+mimic
+4.19
+reply_encoding
+nautilus
+5.1
+reclaim_client
+nautilus
+N/A
+lazy_caps_wanted
+nautilus
+5.1
+multi_reconnect
+nautilus
+5.1
+deleg_ino
+octopus
+5.6
+metric_collect
+pacific
+N/A
+alternate_name
+pacific
+6.5
+notify_session_state
+quincy
+5.19
+op_getvxattr
+quincy
+6.0
+32bits_retry_fwd
+reef
+6.6
+new_snaprealm_info
+reef
+未知
+has_owner_uidgid
+reef
+6.6
+client_mds_auth_caps
+squid+bp
+计划中
+CephFS 特性描述
+reply_encoding
+如果客户端支持此特性，MDS 会以可扩展格式编码请求回复。
+reclaim_client
+MDS 允许新客户端回收另一个（死亡）客户端的状态。此特性由 NFS-Ganesha 使用。
+lazy_caps_wanted
+当陈旧客户端恢复时，如果客户端支持此特性，mds 只需重新颁发明确需要的 caps。
+multi_reconnect
+当 mds 故障转移时，客户端向 mds 发送重新连接消息，以重新建立缓存状态。如果 MDS 支持此特性，客户端可以将大的重新连接消息拆分为多个消息。
+deleg_ino
+如果客户端支持此特性，MDS 会将 inode 编号委托给客户端。拥有委托的 inode 编号是客户端进行异步文件创建的先决条件。
+metric_collect
+如果 MDS 支持此特性，客户端可以将性能指标发送给 MDS。
+alternate_name
+客户端可以设置和理解目录条目的“备用名称”。这用于加密文件名称支持。
+client_mds_auth_caps
+为了在客户端的 mds caps 中有效地实现 root_squash，客户端必须了解它正在强制执行 root_squash 和其他 cap 元数据。没有此特性的客户端有丢失文件更新的风险。建议设置此特性位。
+全局设置
+ceph fs flag set &lt;flag name&gt; &lt;flag val&gt; [&lt;confirmation string&gt;]
+设置全局 CephFS 标志（即不特定于特定文件系统）。目前，唯一的标志设置是“enable_multiple”，它允许拥有多个 CephFS 文件系统。
+有些标志需要您使用“--yes-i-really-mean-it”或他们提示您的类似字符串来确认您的意图。在继续之前仔细考虑这些操作；它们被放置在特别危险的活动上。
+高级
+这些命令在正常操作中不需要，存在用于特殊情况。不正确使用这些命令可能会导致严重问题，例如文件系统无法访问。
+ceph mds rmfailed
+这会从失败集中删除一个排名。
+ceph fs reset &lt;file system name&gt;
+此命令将文件系统状态重置为默认值，除了名称和池。非零排名保存在停止集中。
+ceph fs new &lt;file system name&gt; &lt;metadata pool name&gt; &lt;data pool name&gt; --fscid &lt;fscid&gt; --force
+此命令创建一个具有特定 fscid（文件系统集群 ID）的文件系统。当应用程序期望文件系统的 ID 在恢复后保持稳定时，您可能希望这样做，例如，在监视器数据库丢失并重建之后。因此，文件系统 ID 不会总是随着较新的文件系统而增加。
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一个 下一个
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

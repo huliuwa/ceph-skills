@@ -1,0 +1,55 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+安全性 — Ceph 文档
+安全
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+过去的漏洞 / CVEs
+漏洞管理流程
+报告漏洞
+支持的版本
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+安全性
+过去的漏洞 / CVEs
+漏洞管理流程
+报告漏洞
+要报告漏洞，请发送电子邮件至 security@ceph.io。
+请不要针对漏洞提交公开的 ceph tracker 问题。
+我们敦促报告者提供尽可能多的信息（重现步骤、受影响的版本、可用的修复程序等），因为这可以显著加快处理速度。
+请告知我们应将功劳归于谁以及隶属于哪个机构。
+如果此问题尚未公开披露，并且您有任何披露日期，请在报告中一同告知。
+支持的版本
+安全更新仅应用于当前的 活动版本。
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一页 下一页
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

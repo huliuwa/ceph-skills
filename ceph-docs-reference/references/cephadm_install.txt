@@ -1,0 +1,285 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+使用 cephadm 部署新的 Ceph 集群 — Ceph 文档
+Cephadm
+使用 cephadm 部署新的 Ceph 集群
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+兼容性和稳定性
+使用 cephadm 部署新的 Ceph 集群
+要求
+安装 cephadm
+特定发行版的安装
+使用 curl 安装 cephadm
+引导新集群
+引导前须知
+运行引导命令
+关于 cephadm 引导的更多信息
+启用 Ceph CLI
+添加主机
+添加额外的 MON
+添加存储
+启用 OSD 内存自动调整
+使用 Ceph
+不同的部署场景
+单主机
+在隔离环境中部署
+使用自定义 SSH 密钥部署
+使用 CA 签名 SSH 密钥部署
+将现有集群转换为 cephadm
+主机管理
+服务管理
+证书管理
+升级 Ceph
+Cephadm 操作
+客户端设置
+故障排除
+Cephadm 功能规划
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+使用 cephadm 部署新的 Ceph 集群
+Cephadm 通过引导单个主机来创建新的 Ceph 集群，将集群扩展到包含任何额外的主机，然后部署所需的服务。
+要求
+Python 3
+Systemd
+用于运行容器的 Podman 或 Docker
+时间同步（例如 Chrony 或旧版 ntpd）
+用于配置存储设备的 LVM2
+任何现代 Linux 发行版都应该足够。依赖项将通过下面的引导过程自动安装。
+有关允许重启 Docker 引擎而无需重启所有正在运行的容器的可选功能，请参阅 Docker Live Restore。
+有关 Ceph 版本与 Podman 兼容性的表格，请参阅 与 Podman 版本的兼容性 部分。并非所有版本的 Podman 都与 Ceph 兼容。
+安装 cephadm
+安装 cephadm 时有两个关键步骤：首先需要获取 cephadm 的初始副本，然后第二步是确保您拥有最新的 cephadm。获取初始 cephadm 的方法有两种
+特定发行版的安装方法
+基于 curl 的安装 方法
+重要
+这些安装 cephadm 的方法是互斥的。选择特定发行版的方法或基于 curl 的方法。不要尝试在同一系统上同时使用这两种方法。
+注意
+最近的 cephadm 版本以从源代码编译的可执行文件形式分发。与早期版本的 Ceph 不同，仅从 Ceph 的 git 树复制单个脚本并运行它已不再足够。如果您希望使用开发版本运行 cephadm，则应创建自己的 cephadm 构建。有关如何创建自己的独立 cephadm 可执行文件的详细信息，请参阅 编译 cephadm。
+特定发行版的安装
+某些 Linux 发行版可能已经包含最新的 Ceph 包。在这种情况下，您可以直接安装 cephadm。例如
+在 Ubuntu 中
+span.prompt1:before {
+content: "# ";
+}
+apt install -y cephadm
+在 CentOS Stream 中
+dnf search release-ceph
+dnf install --assumeyes centos-release-ceph-tentacle
+dnf install --assumeyes cephadm
+在 Fedora 中
+dnf -y install cephadm
+在 SUSE 中
+zypper install -y cephadm
+使用 curl 安装 cephadm
+确定您将安装哪个版本的 Ceph。使用版本页面查找 最新的活动版本。例如，您可能会发现 18.2.1 是最新的活动版本。
+使用 curl 获取该版本的 cephadm 构建。
+CEPH_RELEASE=18.2.0 # replace this with the active release
+curl --silent --remote-name --location https://download.ceph.com/rpm-${CEPH_RELEASE}/el9/noarch/cephadm
+使用 chmod 使 cephadm 文件可执行
+chmod +x cephadm
+在对 cephadm 运行 chmod 后，可以在当前目录中运行它
+./cephadm &lt;arguments...&gt;
+cephadm 需要 Python 3.6 或更高版本
+cephadm 需要 Python 3.6 或更高版本。如果您在运行 cephadm 时遇到困难，则可能没有安装 Python 或正确的 Python 版本。这包括任何包含消息 bad interpreter 的错误。
+您可以通过在命令前加上已安装的 Python 版本来手动运行特定版本的 cephadm。例如
+python3.8 ./cephadm &lt;arguments...&gt;
+在主机上安装 cephadm
+尽管独立的 cephadm 足以引导集群，但最好在主机上安装 cephadm 命令。要安装提供 cephadm 命令的软件包，请运行以下命令
+添加存储库
+./cephadm add-repo --release |stable-release|
+运行 cephadm install
+./cephadm install
+通过运行 which 确认 cephadm 现在位于您的 PATH 中
+which cephadm
+成功的 which cephadm 命令将返回此内容
+/usr/sbin/cephadm
+引导新集群
+引导前须知
+创建新 Ceph 集群的第一步是在 Ceph 集群的第一个主机上运行 cephadm bootstrap 命令。运行 cephadm bootstrap 命令的动作在 Ceph 集群的第一个主机上创建了 Ceph 集群的第一个 Monitor 守护程序。您必须将 Ceph 集群第一个主机的 IP 地址传递给 ceph bootstrap 命令，因此您需要知道该主机的 IP 地址。
+重要
+必须安装并运行 ssh 才能使引导过程成功。
+注意
+如果存在多个网络和接口，请确保选择一个任何访问 Ceph 集群的主机都可以访问的接口。
+运行引导命令
+运行 ceph bootstrap 命令
+cephadm bootstrap --mon-ip *&lt;mon-ip&gt;*
+此命令将
+在本地主机上为新集群创建一个 Monitor 和一个 Manager 守护程序。
+为 Ceph 集群生成一个新的 SSH 密钥，并将其添加到 root 用户的 /root/.ssh/authorized_keys 文件中。
+将公钥副本写入 /etc/ceph/ceph.pub。
+将最小配置文件写入 /etc/ceph/ceph.conf。此文件是与 Ceph 守护程序通信所必需的。
+将 client.admin 管理（特权！）密钥副本写入 /etc/ceph/ceph.client.admin.keyring。
+将 _admin 标签添加到引导主机。默认情况下，任何具有此标签的主机都将（也）获得 /etc/ceph/ceph.conf 和 /etc/ceph/ceph.client.admin.keyring 的副本。
+关于 cephadm 引导的更多信息
+默认的引导过程适用于大多数用户。但是，如果您想立即了解更多关于 cephadm bootstrap 的信息，请阅读下面的列表。
+此外，您可以运行 cephadm bootstrap -h 查看 cephadm 所有可用的选项。
+默认情况下，Ceph 守护程序将其日志输出发送到 stdout/stderr，这由容器运行时（docker 或 podman）获取并（在大多数系统上）发送到 journald。如果您希望 Ceph 将传统日志文件写入 /var/log/ceph/$fsid，请在引导期间使用 --log-to-file 选项。
+当（在 Ceph 集群外部）公共网络流量与（在 Ceph 集群内部）集群流量分离时，大型 Ceph 集群性能最佳。内部集群流量处理 OSD 守护程序之间的复制、恢复和心跳。您可以通过向 bootstrap 子命令提供 --cluster-network 选项来定义 集群网络。此参数必须是 CIDR 表示法中的子网（例如 10.90.90.0/24 或 fe80::/64）。
+cephadm bootstrap 将访问新集群所需的文件写入 /etc/ceph。这个中心位置使得安装在主机上的 Ceph 包（例如，提供对 cephadm 命令行界面的访问的包）能够找到这些文件。
+然而，使用 cephadm 部署的守护程序容器根本不需要 /etc/ceph。使用 --output-dir *&lt;directory&gt;* 选项将它们放在不同的目录中（例如，.）。这可能有助于避免与同一主机上现有的 Ceph 配置（cephadm 或其他方式）发生冲突。
+您可以通过将初始 Ceph 配置选项放入标准的 ini 样式配置文件中并使用 --config *&lt;config-file&gt;* 选项，将它们传递给新集群。例如
+$ cat &lt;&lt;EOF &gt; initial-ceph.conf
+[global]
+osd crush chooseleaf type = 0
+EOF
+$ ./cephadm bootstrap --config initial-ceph.conf ...
+--ssh-user *&lt;user&gt;* 选项使得可以指定 cephadm 将使用哪个 SSH 用户连接到主机。关联的 SSH 密钥将添加到 ~*&lt;user&gt;*/.ssh/authorized_keys。您使用此选项指定的用户必须具有无密码 sudo 访问权限。
+如果您正在使用需要登录的注册表中的容器镜像，则可以添加参数
+--registry-json &lt;path to json file&gt;
+包含登录信息的 JSON 文件示例内容
+{"url":"REGISTRY_URL", "username":"REGISTRY_USERNAME", "password":"REGISTRY_PASSWORD"}
+Cephadm 将尝试登录此注册表，以便它可以拉取您的容器，然后将登录信息存储在其配置数据库中。添加到集群的其他主机也将能够使用经过身份验证的容器注册表。
+有关使用 cephadm bootstrap 的其他示例，请参阅 不同的部署场景。
+启用 Ceph CLI
+Cephadm 不需要主机上安装任何 Ceph 包。但是，我们建议启用对 ceph 命令的轻松访问。有几种方法可以做到这一点
+cephadm shell 命令在容器中启动 bash shell，并安装了所有 Ceph 包。默认情况下，如果在主机上的 /etc/ceph 中找到配置文件和密钥环文件，它们将传递到容器环境中，以便 shell 完全正常工作。请注意，当在 MON 主机上执行时，cephadm shell 将从 MON 容器推断 config，而不是使用默认配置。如果给定了 --mount &lt;path&gt;，则主机 &lt;path&gt;（文件或目录）将出现在容器内的 /mnt 下
+cephadm shell
+要执行 ceph 命令，您也可以运行如下命令
+cephadm shell -- ceph -s
+您可以安装 ceph-common 包，其中包含所有 ceph 命令，包括 ceph、rbd、mount.ceph（用于挂载 CephFS 文件系统）等。
+cephadm add-repo --release tentacle
+cephadm install ceph-common
+使用以下命令确认 ceph 命令可访问
+ceph -v
+使用以下命令确认 ceph 命令可以连接到集群并查看其状态
+ceph status
+添加主机
+通过遵循 添加主机 中的说明将所有主机添加到集群。
+默认情况下，在所有具有 _admin 标签的主机上，ceph.conf 文件和 client.admin 密钥环的副本保存在 /etc/ceph 中。此标签最初仅应用于引导主机。我们建议将 _admin 标签授予一个或多个其他主机，以便在多个主机上轻松访问 Ceph CLI（例如，通过 cephadm shell）。要将 _admin 标签添加到其他主机，请运行以下形式的命令
+ceph orch host label add *&lt;host&gt;* _admin
+添加额外的 MON
+一个典型的 Ceph 集群有三个或五个 Monitor 守护程序分布在不同的主机上。如果集群中有五个或更多节点，我们建议部署五个 Monitor。大多数集群不会从七个或更多 Monitor 中受益。
+请遵循 部署额外的 Monitor 来部署额外的 MON。
+添加存储
+要向集群添加存储，您可以告诉 Ceph 消耗任何可用和未使用的设备
+ceph orch apply osd --all-available-devices
+有关更详细的说明，请参阅 部署 OSD。
+启用 OSD 内存自动调整
+警告
+默认情况下，cephadm 在引导时启用 osd_memory_target_autotune，并将 mgr/cephadm/autotune_memory_target_ratio 设置为总主机内存的 .7。
+请参阅 自动调整 OSD 内存。
+要使用 TripleO 部署超融合 Ceph，请参阅 TripleO 文档：场景：部署超融合 Ceph
+在集群硬件并非专门用于 Ceph 的其他情况下（融合基础设施），请按如下方式减少 Ceph 的内存消耗
+# converged only:
+ceph config set mgr mgr/cephadm/autotune_memory_target_ratio 0.2
+然后启用内存自动调整
+ceph config set osd osd_memory_target_autotune true
+使用 Ceph
+要使用 Ceph 文件系统，请遵循 部署 CephFS。
+要使用 Ceph 对象网关，请遵循 部署 RGW。
+要使用 NFS，请遵循 NFS 服务
+要使用 iSCSI，请遵循 部署 iSCSI
+不同的部署场景
+单主机
+要在单个主机上部署 Ceph 集群，请在引导时使用 --single-host-defaults 标志。有关用例，请参阅 单节点集群。此类集群通常不适合生产。
+--single-host-defaults 标志设置以下配置选项
+global/osd_crush_chooseleaf_type = 0
+global/osd_pool_default_size = 2
+mgr/mgr_standby_modules = False
+有关这些选项的更多信息，请参阅 单节点集群 和 ceph-mgr 管理员指南 中的 mgr_standby_modules。
+在隔离环境中部署
+您可能需要在未直接连接到 Internet 的环境（“隔离”或“气隙”环境）中安装 cephadm。这需要使用自定义容器注册表。在这种情况下可以使用两种自定义容器注册表：(1) 基于 Podman 或 Docker 的不安全注册表，或 (2) 安全注册表。
+在未直接连接到互联网的系统上安装软件的做法称为“气隙”，未直接连接到互联网的注册表称为“气隙”注册表。
+确保您的容器镜像在注册表中。确保您可以访问计划添加到集群的所有主机。
+运行本地容器注册表
+podman run --privileged -d --name registry -p 5000:5000 -v /var/lib/registry:/var/lib/registry --restart=always registry:2
+如果您使用的是不安全的注册表，请使用运行注册表的主机名和端口配置 Podman 或 Docker。
+注意
+对于访问本地不安全注册表的每个主机，您都必须重复此步骤。
+将容器镜像推送到本地注册表。以下是一些可接受的容器镜像类型
+Ceph 容器镜像。请参阅 Ceph 容器镜像。
+Prometheus 容器镜像
+Node exporter 容器镜像
+Grafana 容器镜像
+Alertmanager 容器镜像
+创建一个临时配置文件来存储监控镜像的名称。（请参阅 默认镜像）
+span.prompt2:before {
+content: "$ ";
+}
+cat &lt;&lt;EOF &gt; initial-ceph.conf
+[mgr]
+mgr/cephadm/container_image_prometheus = *&lt;hostname&gt;*:5000/prometheus
+mgr/cephadm/container_image_node_exporter = *&lt;hostname&gt;*:5000/node_exporter
+mgr/cephadm/container_image_grafana = *&lt;hostname&gt;*:5000/grafana
+mgr/cephadm/container_image_alertmanager = *&lt;hostname&gt;*:5000/alertmanger
+使用 --image 标志运行引导，并将容器镜像的名称作为 image 标志的参数传递。例如
+cephadm --image *&lt;hostname&gt;*:5000/ceph/ceph bootstrap --mon-ip *&lt;mon-ip&gt;*
+使用自定义 SSH 密钥部署
+引导允许用户创建自己的私钥/公钥 SSH 密钥对，而不是让 cephadm 自动生成它们。
+要使用自定义 SSH 密钥，请将 --ssh-private-key 和 --ssh-public-key 字段传递给引导。这两个参数都需要密钥存储的文件路径
+cephadm bootstrap --mon-ip &lt;ip-addr&gt; --ssh-private-key &lt;private-key-filepath&gt; --ssh-public-key &lt;public-key-filepath&gt;
+此设置允许用户使用已在引导之前分发到用户希望加入集群的主机的密钥。
+注意
+为了让 cephadm 连接到您希望添加到集群的其他主机，请确保提供的密钥对的公钥已设置为所使用的 ssh 用户的授权密钥，通常是 root。如果您想了解有关使用非 root 用户作为 ssh 用户的更多信息，请参阅 关于 cephadm 引导的更多信息
+使用 CA 签名 SSH 密钥部署
+作为标准公钥身份验证的替代方案，cephadm 还支持使用 CA 签名密钥进行部署。在引导之前，建议将 CA 公钥设置为您希望最终添加到集群的主机上的受信任 CA 密钥。例如
+# we will act as our own CA, therefore we'll need to make a CA key
+[root@host1 ~]# ssh-keygen -t rsa -f ca-key -N ""
+# make the ca key trusted on the host we've generated it on
+# this requires adding in a line in our /etc/sshd_config
+# to mark this key as trusted
+[root@host1 ~]# cp ca-key.pub /etc/ssh
+[root@host1 ~]# vi /etc/ssh/sshd_config
+[root@host1 ~]# cat /etc/ssh/sshd_config | grep ca-key
+TrustedUserCAKeys /etc/ssh/ca-key.pub
+# now restart sshd so it picks up the config change
+[root@host1 ~]# systemctl restart sshd
+# now, on all other hosts we want in the cluster, also install the CA key
+[root@host1 ~]# scp /etc/ssh/ca-key.pub host2:/etc/ssh/
+# on other hosts, make the same changes to the sshd_config
+[root@host2 ~]# vi /etc/ssh/sshd_config
+[root@host2 ~]# cat /etc/ssh/sshd_config | grep ca-key
+TrustedUserCAKeys /etc/ssh/ca-key.pub
+# and restart sshd so it picks up the config change
+[root@host2 ~]# systemctl restart sshd
+安装 CA 密钥并将其标记为受信任密钥后，您就可以使用私钥/CA 签名证书组合进行 SSH。继续我们当前的示例，我们将创建一个新的密钥对用于主机访问，然后使用我们的 CA 密钥对其进行签名
+# make a new key pair
+[root@host1 ~]# ssh-keygen -t rsa -f cephadm-ssh-key -N ""
+# sign the private key. This will create a new cephadm-ssh-key-cert.pub
+# note here we're using user "root". If you'd like to use a non-root
+# user the arguments to the -I and -n params would need to be adjusted
+# Additionally, note the -V param indicates how long until the cert
+# this creates will expire
+[root@host1 ~]# ssh-keygen -s ca-key -I user_root -n root -V +52w cephadm-ssh-key
+[root@host1 ~]# ls
+ca-key  ca-key.pub  cephadm-ssh-key  cephadm-ssh-key-cert.pub  cephadm-ssh-key.pub
+# verify our signed key is working. To do this, make sure the generated private
+# key ("cephadm-ssh-key" in our example) and the newly signed cert are stored
+# in the same directory. Then try to ssh using the private key
+[root@host1 ~]# ssh -i cephadm-ssh-key host2
+一旦您拥有私钥和相应的 CA 签名证书，并且已测试使用该密钥的 SSH 身份验证有效，您就可以将这些密钥传递给引导程序，以便 cephadm 使用它们在集群主机之间进行 SSH 连接
+[root@host1 ~]# cephadm bootstrap --mon-ip &lt;ip-addr&gt; --ssh-private-key cephadm-ssh-key --ssh-signed-cert cephadm-ssh-key-cert.pub
+请注意，此设置不需要在其他节点上安装传递给引导程序的私钥的相应公钥。事实上，当与 --ssh-signed-cert 一起传递时，cephadm 将拒绝 --ssh-public-key 参数。这不是因为拥有公钥会破坏任何东西，而是因为它根本不需要，并且有助于引导命令区分用户是想要 CA 签名密钥设置还是标准公钥加密。这意味着 SSH 密钥轮换只需获取由同一 CA 签名的另一个密钥，并向 cephadm 提供新的私钥和签名证书即可。在将 CA 密钥设置为受信任密钥的初始设置之后，无论有多少新的私钥/签名证书对被轮换，都不需要向集群节点分发额外的密钥。
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一个 下一个
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

@@ -1,0 +1,285 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+故障排除 — Ceph 文档
+Cephadm
+故障排除
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+兼容性和稳定性
+使用 cephadm 部署新的 Ceph 集群
+将现有集群转换为 cephadm
+主机管理
+服务管理
+证书管理
+升级 Ceph
+Cephadm 操作
+客户端设置
+故障排除
+暂停或禁用 cephadm
+按服务和按守护程序划分的事件
+列出服务事件
+列出守护程序事件
+检查 Cephadm 日志
+收集日志文件
+收集 Systemd 状态
+列出所有已下载的容器镜像
+手动运行容器
+SSH 错误
+验证公钥是否列在 authorized_keys 文件中
+无法推断 CIDR 网络错误
+访问 Admin Socket
+运行各种 Ceph 工具
+恢复监视器仲裁
+手动部署管理器守护程序
+捕获核心转储
+使用 cephadm 运行调试器
+运行单个调试会话
+运行重复的调试会话
+调试实时进程
+Cephadm 功能规划
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+故障排除
+本节解释如何调查 cephadm 命令失败的原因或特定服务无法正常运行的原因。
+Cephadm 在容器内部署守护程序。对容器化守护程序进行故障排除所需的流程与对通过软件包安装的传统守护程序进行故障排除的流程不同。
+这里有一些工具和命令可以帮助您对 Ceph 环境进行故障排除。
+暂停或禁用 cephadm
+如果出现问题且 cephadm 行为异常，请运行以下命令来暂停 Ceph 集群的大部分后台活动
+span.prompt1:before {
+content: "# ";
+}
+ceph orch pause
+这会停止 Ceph 集群中的所有更改，但 cephadm 仍会定期检查主机以刷新其守护程序和设备清单。运行以下命令完全禁用 cephadm
+ceph orch set backend ''
+ceph mgr module disable cephadm
+这些命令会禁用所有 ceph orch ... CLI 命令。所有先前部署的守护程序容器将继续运行，并像您运行这些命令之前一样启动。
+有关禁用单个服务的更多信息，请参阅 禁用守护程序的自动部署。
+按服务和按守护程序划分的事件
+为了更容易调试失败的守护程序，cephadm 会按服务和按守护程序存储事件。这些事件通常包含与 Ceph 集群故障排除相关的信息。
+列出服务事件
+要查看与某个服务关联的事件，请运行以下形式的命令
+ceph orch ls --service_name=&lt;service-name&gt; --format yaml
+这将返回以下形式的信息
+service_type: alertmanager
+service_name: alertmanager
+placement:
+hosts:
+- unknown_host
+status:
+...
+running: 1
+size: 1
+events:
+- 2021-02-01T08:58:02.741162 service:alertmanager [INFO] "service was created"
+- '2021-02-01T12:09:25.264584 service:alertmanager [ERROR] "Failed to apply: Cannot
+place &lt;AlertManagerSpec for service_name=alertmanager&gt; on unknown_host: Unknown hosts"'
+列出守护程序事件
+要查看与某个守护程序关联的事件，请运行以下形式的命令
+ceph orch ps --service-name &lt;service-name&gt; --daemon-id &lt;daemon-id&gt; --format yaml
+这将返回以下形式的内容
+daemon_type: mds
+daemon_id: cephfs.hostname.ppdhsz
+hostname: hostname
+status_desc: running
+...
+events:
+- 2021-02-01T08:59:43.845866 daemon:mds.cephfs.hostname.ppdhsz [INFO] "Reconfigured
+mds.cephfs.hostname.ppdhsz on host 'hostname'"
+检查 Cephadm 日志
+要了解如何监视 cephadm 日志的生成，请阅读 监视 cephadm 日志消息。
+如果您的 Ceph 集群已配置为将事件记录到文件中，则所有监视器主机上都会有一个 ceph.cephadm.log 文件。有关更完整的解释，请参阅 Ceph 守护程序控制。
+收集日志文件
+使用 journalctl 收集所有守护程序的日志文件
+注意
+默认情况下，cephadm 现在将日志存储在 journald 中。这意味着您将不再在 /var/log/ceph/ 中找到守护程序日志。
+要读取特定守护程序的日志文件，请运行以下形式的命令
+span.prompt2:before {
+content: "$ ";
+}
+cephadm logs --name &lt;name-of-daemon&gt;
+注意
+这仅在运行守护程序的主机上运行时才有效。要获取在不同主机上运行的守护程序的日志，请在命令中添加 --fsid 选项，如以下示例所示
+cephadm logs --fsid &lt;fsid&gt; --name &lt;name-of-daemon&gt;
+在此示例中，&lt;fsid&gt; 对应于 ceph status 命令返回的集群 ID。
+要获取给定主机上所有守护程序的所有日志文件，请运行以下 for 循环
+for name in $(cephadm ls | jq -r '.[].name') ; do
+cephadm logs --fsid &lt;fsid&gt; --name "$name" &gt; $name;
+done
+收集 Systemd 状态
+要打印 systemd 单元的状态，请运行以下形式的命令
+systemctl status "ceph-$(cephadm shell ceph fsid)@&lt;service name&gt;.service";
+要获取给定主机上所有守护程序的状态，请运行以下 shell 脚本
+fsid="$(cephadm shell ceph fsid)"
+for name in $(cephadm ls | jq -r '.[].name') ; do
+systemctl status "ceph-$fsid@$name.service" &gt; $name;
+done
+列出所有已下载的容器镜像
+要列出主机上下载的所有容器镜像，请运行以下命令
+podman ps -a --format json | jq '.[].Image' "docker.io/library/centos:8" "registry.opensuse.org/opensuse/leap:15.2"
+注意
+Image 也可能被称为 ImageID。
+手动运行容器
+Cephadm 在运行容器时使用小型包装器。有关容器执行命令，请参阅 /var/lib/ceph/&lt;cluster-fsid&gt;/&lt;service-name&gt;/unit.run。
+SSH 错误
+错误消息
+execnet.gateway_bootstrap.HostNotFound: -F /tmp/cephadm-conf-73z09u6g -i /tmp/cephadm-identity-ky7ahp_5 root@10.10.1.2
+...
+raise OrchestratorError(msg) from e
+orchestrator._interface.OrchestratorError: Failed to connect to 10.10.1.2 (10.10.1.2).
+Please make sure that the host is reachable and accepts connections using the cephadm SSH key
+...
+如果您收到上述错误消息，请尝试以下操作来对 cephadm 和监视器之间的 SSH 连接进行故障排除
+确保 cephadm 具有 SSH 身份密钥
+[root@mon1~]# cephadm shell -- ceph config-key get mgr/cephadm/ssh_identity_key &gt; ~/cephadm_private_key
+INFO:cephadm:Inferring fsid f8edc08a-7f17-11ea-8707-000c2915dd98
+INFO:cephadm:Using recent ceph image docker.io/ceph/ceph:v15 obtained 'mgr/cephadm/ssh_identity_key'
+[root@mon1 ~] # chmod 0600 ~/cephadm_private_key
+如果失败，则 cephadm 没有密钥。通过运行以下命令修复此问题
+[root@mon1 ~]# cephadm shell -- ceph cephadm generate-ssh-key
+或
+[root@mon1 ~]# cat ~/cephadm_private_key | cephadm shell -- ceph cephadm set-ssh-key -i -
+确保 SSH 配置正确
+[root@mon1 ~]# cephadm shell -- ceph cephadm get-ssh-config &gt; config
+验证是否可以连接到主机
+[root@mon1 ~]# ssh -F config -i ~/cephadm_private_key root@mon1
+验证公钥是否列在 authorized_keys 文件中
+要验证公钥是否在 authorized_keys 文件中，请运行以下命令
+[root@mon1 ~]# cephadm shell -- ceph cephadm get-pub-key &gt; ~/ceph.pub
+[root@mon1 ~]# grep "`cat ~/ceph.pub`"  /root/.ssh/authorized_keys
+无法推断 CIDR 网络错误
+如果您看到此错误
+ERROR: Failed to infer CIDR network for mon ip ***; pass --skip-mon-network to configure it later
+或此错误
+Must set public_network config option or specify a CIDR network, ceph addrvec, or plain IP
+这意味着您必须运行以下形式的命令
+ceph config set mon public_network &lt;mon_network&gt;
+有关此类操作的更多详细信息，请参阅 部署额外的监视器。
+访问 Admin Socket
+每个 Ceph 守护程序都提供一个 admin socket，允许在运行时设置选项和读取统计信息。请参阅 使用 Admin Socket。
+要访问 admin socket，请在主机上进入守护程序容器
+[root@mon1 ~]# cephadm enter --name &lt;daemon-name&gt;
+运行以下形式的命令以查看 admin socket 的配置和其他可用操作
+[ceph: root@mon1 /]# ceph --admin-daemon /var/run/ceph/ceph-&lt;daemon-name&gt;.asok config show
+[ceph: root@mon1 /]# ceph --admin-daemon /var/run/ceph/ceph-&lt;daemon-name&gt;.asok help
+运行各种 Ceph 工具
+要运行 ceph-objectstore-tool 或 ceph-monstore-tool 等 Ceph 工具，请使用 cephadm shell --name &lt;daemon-name&gt; 调用 cephadm CLI。例如
+root@myhostname # cephadm unit --name mon.myhostname stop
+root@myhostname # cephadm shell --name mon.myhostname
+[ceph: root@myhostname /]# ceph-monstore-tool /var/lib/ceph/mon/ceph-myhostname get monmap &gt; monmap
+[ceph: root@myhostname /]# monmaptool --print monmap
+monmaptool: monmap file monmap
+epoch 1
+fsid 28596f44-3b56-11ec-9034-482ae35a5fbb
+last_changed 2021-11-01T20:57:19.755111+0000
+created 2021-11-01T20:57:19.755111+0000
+min_mon_release 17 (quincy)
+election_strategy: 1
+0: [v2:127.0.0.1:3300/0,v1:127.0.0.1:6789/0] mon.myhostname
+cephadm shell 以适合扩展守护程序维护和交互式运行守护程序的方式设置环境。
+恢复监视器法定人数
+如果 Ceph 监视器守护程序 (mons) 无法形成法定人数，则 cephadm 将无法管理集群，直到法定人数恢复。
+要恢复法定人数，请按照以下步骤从 monmap 中删除不健康的监视器
+停止所有监视器。使用 ssh 连接到每个监视器的主机，然后在连接到监视器的主机时使用 cephadm 停止监视器守护程序
+ssh {mon-host}
+cephadm unit --name {mon.hostname} stop
+识别幸存的监视器并登录到其主机
+ssh {mon-host}
+cephadm enter --name {mon.hostname}
+按照 从不健康的集群中删除监视器 中的步骤操作。
+手动部署管理器守护程序
+cephadm 需要至少一个管理器 (mgr) 守护程序才能管理集群。如果最后一个剩余的管理器已从 Ceph 集群中删除，请按照以下步骤在集群中的任意主机上部署新的管理器。在此示例中，新部署的管理器守护程序称为 mgr.hostname.smfvfd。
+禁用 cephadm 调度程序，以防止 cephadm 删除新的管理器。请参阅 启用 Ceph CLI
+ceph config-key set mgr/cephadm/pause true
+检索或创建新管理器的“auth entry”
+ceph auth get-or-create mgr.hostname.smfvfd mon "profile mgr" osd "allow *" mds "allow *"
+检索监视器的配置
+ceph config generate-minimal-conf
+检索容器镜像
+ceph config get "mgr.hostname.smfvfd" container_image
+创建名为 config-json.json 的文件，其中包含部署守护程序所需的信息
+{
+"config": "# minimal ceph.conf for 8255263a-a97e-4934-822c-00bfe029b28f\n[global]\n\tfsid = 8255263a-a97e-4934-822c-00bfe029b28f\n\tmon_host = [v2:192.168.0.1:40483/0,v1:192.168.0.1:40484/0]\n",
+"keyring": "[mgr.hostname.smfvfd]\n\tkey = V2VyIGRhcyBsaWVzdCBpc3QgZG9vZi4=\n"
+}
+部署管理器守护程序
+cephadm --image &lt;container-image&gt; deploy --fsid &lt;fsid&gt; --name mgr.hostname.smfvfd --config-json config-json.json
+捕获核心转储
+可以使用 cephadm 配置 Ceph 集群以捕获核心转储。核心转储的初始捕获和处理由 systemd-coredump 执行。
+要启用核心转储处理，请运行以下命令
+ulimit -c unlimited
+注意
+核心转储不受内核的命名空间限制。这意味着核心转储将写入容器主机上的 /var/lib/systemd/coredump。ulimit -c unlimited 设置将仅在系统重新启动之前持续存在。
+等待崩溃再次发生。要模拟守护程序崩溃，例如运行 killall -3 ceph-mon。
+使用 cephadm 运行调试器
+运行单个调试会话
+使用 cephadm shell 命令启动调试会话。在 shell 容器内，我们需要安装调试器和 debuginfo 软件包。要调试 systemd 捕获的核心文件，请运行以下命令
+启动 shell 会话
+cephadm shell --mount /var/lib/system/coredump
+在 shell 会话中，运行以下命令
+dnf install ceph-debuginfo gdb zstd
+unzstd /var/lib/systemd/coredump/core.ceph-*.zst
+gdb /usr/bin/ceph-mon /mnt/coredump/core.ceph-*.zst
+在 gdb 提示符下运行调试器命令
+span.prompt3:before {
+content: "(gdb) ";
+}
+bt
+#0  0x00007fa9117383fc in pthread_cond_wait@@GLIBC_2.3.2 () from /lib64/libpthread.so.0
+#1  0x00007fa910d7f8f0 in std::condition_variable::wait(std::unique_lock&lt;std::mutex&gt;&amp;) () from /lib64/libstdc++.so.6
+#2  0x00007fa913d3f48f in AsyncMessenger::wait() () from /usr/lib64/ceph/libceph-common.so.2
+#3  0x0000563085ca3d7e in main ()
+运行重复的调试会话
+如上例所示，使用 cephadm shell 时，对 shell 命令生成的容器所做的任何更改都是短暂的。 shell 会话退出后，已下载和安装的文件将不再可用。您可以在每次调用 cephadm shell 时重新运行相同的命令，但为了节省时间和资源，您可以创建一个新的容器镜像并将其用于重复的调试会话。
+在以下示例中，我们创建了一个简单的文件来构建容器镜像。下面的命令使用 podman，但即使将 podman 替换为 docker，它也应该能正常工作
+cat &gt;Containerfile &lt;&lt;EOF
+ARG BASE_IMG=quay.io/ceph/ceph:v18
+FROM \${BASE_IMG}
+# install ceph debuginfo packages, gdb and other potentially useful packages
+RUN dnf install --enablerepo='*debug*' -y ceph-debuginfo gdb zstd strace python3-debuginfo
+EOF
+podman build -t ceph:debugging -f Containerfile .
+# pass --build-arg=BASE_IMG=&lt;your image&gt; to customize the base image
+上面的文件创建了一个名为 ceph:debugging 的新本地镜像。此镜像可以在构建它的同一台机器上使用。该镜像也可以推送到容器仓库或保存并复制到运行其他 Ceph 容器的节点。有关容器工作流的更多信息，请参阅 podman 或 docker 文档。
+构建镜像后，它可用于启动重复的调试会话。通过以这种方式使用镜像，您可以避免每次需要运行调试会话时都必须重新安装调试工具和 debuginfo 软件包的麻烦。要使用此镜像调试核心文件（与前面描述的方式相同），请运行
+cephadm --image ceph:debugging shell --mount /var/lib/system/coredump
+调试实时进程
+gdb 调试器可以附加到正在运行的进程进行调试。这可以通过使用调试镜像并将其附加到要调试的进程所在的同一 PID 命名空间来实现。
+这需要使用一些自定义参数运行容器命令。我们可以生成一个脚本来调试正在运行的容器中的进程。
+cephadm --image ceph:debugging shell --dry-run &gt; /tmp/debug.sh
+这会创建一个脚本，其中包含 cephadm 用于创建 shell 的容器命令。通过删除 --init 参数并将其替换为加入用于正在运行的容器的命名空间的参数来修改脚本。例如，假设我们要调试管理器，并且已确定管理器正在名为 ceph-bc615290-685b-11ee-84a6-525400220000-mgr-ceph0-sluwsk 的容器中运行。在这种情况下，应使用参数 --pid=container:ceph-bc615290-685b-11ee-84a6-525400220000-mgr-ceph0-sluwsk。
+我们可以使用 sh /tmp/debug.sh 运行调试容器。在 shell 中，我们可以运行诸如 ps 之类的命令来获取管理器进程的 PID。在以下示例中，这是 2。在运行 gdb 时，我们可以附加到正在运行的进程
+attach 2
+info threads
+bt
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一个 下一个
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

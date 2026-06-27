@@ -1,0 +1,475 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+Admin Guide — Ceph Documentation
+Ceph 对象网关
+管理员指南
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+HTTP 前端
+多站点配置
+区域功能
+池放置和存储类
+多站点同步策略配置
+配置池
+配置参考
+管理员指南
+用户管理
+Create a User
+Create a Subuser
+Get User Info
+Modify User Info
+User Suspend
+User Enable
+Remove a User
+Remove a Subuser
+Add or Remove a Key
+Add or Remove Admin Capabilities
+Admin and System Users
+Quota Management
+Set User Quota
+Enabling and Disabling User Quota
+Set Bucket Quota
+Enable and Disabling Bucket Quota
+Get Quota Settings
+Update Quota Stats
+Get User Usage Stats
+Default Quotas
+Quota Cache
+Reading / Writing Global Quotas
+Rate Limit Management
+Read Requests and Write Requests
+How Metrics Work
+Set User Rate Limit
+Get User Rate Limit
+Enable and Disable User Rate Limit
+Set Bucket Rate Limit
+Get Bucket Rate Limit
+Enable and Disable Bucket Rate Limit
+Reading and Writing Global Rate Limit Configuration
+用法
+Show Usage
+Trim Usage
+Usage Log Key Transition
+用户帐户
+S3 API
+IAM API
+数据缓存和 CDN
+Swift API
+管理员操作 API
+Python 绑定
+通过 NFS 导出
+OpenStack Keystone 集成
+OpenStack Barbican 集成
+HashiCorp Vault 集成
+KMIP 集成
+Open Policy Agent 集成
+多租户
+压缩
+LDAP 身份验证
+服务器端加密
+存储桶策略
+动态存储桶索引重新分片
+多因素身份验证
+同步模块
+存储桶通知
+RADOS 中的数据布局
+STS
+STS Lite
+Keycloak
+会话标签
+角色
+孤立列表和相关工具
+OpenID Connect 提供程序
+故障排除
+Manpage radosgw
+Manpage radosgw-admin
+用于加密和压缩的 QAT 加速
+S3-select
+Lua 脚本
+D3N 数据缓存
+云迁移
+云恢复
+指标
+用于压缩的 UADK 加速
+存储桶日志记录
+完整对象去重
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+Admin Guide
+Ceph Object Storage 服务启动并运行后，可以通过用户管理、访问控制、配额和使用情况跟踪进行管理。
+用户管理
+Ceph Object Storage 用户管理仅指 Ceph Object Storage 服务的用户，不指 Ceph Object Gateway 作为 Ceph Storage Cluster 的用户。创建用户、访问密钥和密钥以使最终用户能够与 Ceph Object Gateway 服务交互。可选地，用户可以属于 帐户，以便于管理。
+有两种类型的用户
+用户： “用户”一词指 S3 接口的用户。
+子用户： “子用户”一词指 Swift 接口的用户。子用户与用户相关联。
+可以创建、修改、查看、暂停和删除用户和子用户。您可以向用户配置文件添加显示名称和电子邮件地址。密钥和机密可以指定或自动生成。生成或指定密钥时，请记住用户 ID 对应于 S3 密钥类型，子用户 ID 对应于 Swift 密钥类型。
+Swift 密钥具有 read、write、readwrite 和 full 的访问级别。
+创建用户
+要创建用户（S3 接口），请运行以下形式的命令
+span.prompt1:before {
+content: "# ";
+}
+radosgw-admin user create --uid={username} --display-name="{display-name}" [--email={email}]
+例如
+radosgw-admin user create --uid=johndoe --display-name="John Doe" --email=john@example.com
+{ "user_id": "johndoe",
+"display_name": "John Doe",
+"email": "john@example.com",
+"suspended": 0,
+"max_buckets": 1000,
+"subusers": [],
+"keys": [
+{ "user": "johndoe",
+"access_key": "11BS02LGFB6AL6H1ADMW",
+"secret_key": "vzCEkuryfn060dfee4fgQPqFrncKEIkh3ZcdOANY"}],
+"swift_keys": [],
+"caps": [],
+"op_mask": "read, write, delete",
+"default_placement": "",
+"placement_tags": [],
+"bucket_quota": { "enabled": false,
+"max_size_kb": -1,
+"max_objects": -1},
+"user_quota": { "enabled": false,
+"max_size_kb": -1,
+"max_objects": -1},
+"temp_url_keys": []}
+创建用户需要创建 access_key 和 secret_key 条目，可与任何兼容 S3 API 的客户端一起使用。
+重要
+检查密钥输出。有时 radosgw-admin 会生成 JSON 转义字符 (\)，有些客户端不知道如何处理 JSON 转义字符。补救措施包括删除 JSON 转义字符 (\)、将字符串封装在引号中、重新生成密钥并确保它没有 JSON 转义字符，或手动指定密钥和机密。
+创建子用户
+要为用户创建子用户（Swift 接口的用户），请指定用户 ID (--uid={username})、子用户 ID 和子用户的访问级别
+radosgw-admin subuser create --uid={uid} --subuser={uid} --access=[ read | write | readwrite | full ]
+例如
+radosgw-admin subuser create --uid=johndoe --subuser=johndoe:swift --access=full
+注意
+full 与 readwrite 不同。full 访问级别包括 read 和 write，但它还包括访问控制策略。
+{ "user_id": "johndoe",
+"display_name": "John Doe",
+"email": "john@example.com",
+"suspended": 0,
+"max_buckets": 1000,
+"subusers": [
+{ "id": "johndoe:swift",
+"permissions": "full-control"}],
+"keys": [
+{ "user": "johndoe",
+"access_key": "11BS02LGFB6AL6H1ADMW",
+"secret_key": "vzCEkuryfn060dfee4fgQPqFrncKEIkh3ZcdOANY"}],
+"swift_keys": [],
+"caps": [],
+"op_mask": "read, write, delete",
+"default_placement": "",
+"placement_tags": [],
+"bucket_quota": { "enabled": false,
+"max_size_kb": -1,
+"max_objects": -1},
+"user_quota": { "enabled": false,
+"max_size_kb": -1,
+"max_objects": -1},
+"temp_url_keys": []}
+获取用户信息
+要获取有关用户的信息，请指定 user info 和用户 ID (--uid={username})。使用以下形式的命令
+radosgw-admin user info --uid=johndoe
+修改用户信息
+要修改有关用户的信息，请指定用户 ID (--uid={username}) 和要修改的属性。典型的修改是针对密钥和机密、电子邮件地址、显示名称和访问级别进行的。使用以下形式的命令
+radosgw-admin user modify --uid=johndoe --display-name="John E. Doe"
+要修改子用户值，请指定 subuser modify、用户 ID 和子用户 ID。使用以下形式的命令
+radosgw-admin subuser modify --uid=johndoe --subuser=johndoe:swift --access=full
+暂停用户
+创建用户时，用户默认启用。但是，可以暂停用户权限并在以后重新启用它们。要暂停用户，请在以下形式的命令中指定 user suspend 和用户 ID
+radosgw-admin user suspend --uid=johndoe
+启用用户
+要重新启用暂停的用户，请提供 user enable 并在以下形式的命令中指定用户 ID
+radosgw-admin user enable --uid=johndoe
+注意
+禁用用户也会禁用任何子用户。
+删除用户
+删除用户时，也会删除与该用户关联的任何子用户。
+可以在不删除其关联用户的情况下删除子用户。这在名为 Remove a Subuser 的部分中介绍。
+要删除用户以及与其关联的任何子用户，请使用 user rm 命令并提供要删除的用户的用户 ID。使用以下形式的命令
+radosgw-admin user rm --uid=johndoe
+选项包括
+清除数据： --purge-data 选项清除与 UID 关联的所有数据。
+清除密钥： --purge-keys 选项清除与 UID 关联的所有密钥。
+删除子用户
+删除子用户会删除对 Swift 接口或 S3 的访问权限。与被删除子用户关联的用户在子用户被删除后仍保留在系统中。
+要删除子用户，请使用命令 subuser rm 并提供要删除的子用户的子用户 ID。使用以下形式的命令
+radosgw-admin subuser rm --subuser=johndoe:swift
+选项包括
+清除密钥： --purge-keys 选项清除与 UID 关联的所有密钥。
+添加或删除密钥
+用户和子用户都需要密钥才能访问 S3 或 Swift 接口。要使用 S3，用户需要由访问密钥和密钥组成的密钥对。要使用 Swift，用户需要一个密钥（密码），该密钥与其关联的用户 ID 一起使用。您可以创建密钥并指定或生成访问密钥或密钥。您也可以删除密钥。选项包括
+--key-type=&lt;type&gt; 指定密钥类型。选项为：s3、swift
+--access-key=&lt;key&gt; 手动指定 S3 访问密钥。
+--secret-key=&lt;key&gt; 手动指定 S3 密钥或 Swift 密钥。
+--gen-access-key 自动生成随机 S3 访问密钥。
+--gen-secret 自动生成随机 S3 密钥或随机 Swift 密钥。
+--generate-key 创建带或不带凭据的用户。如果设置为 false，则用户无法设置 gen-secret/gen-access-key/access-key/secret-key
+添加 S3 密钥
+要为用户添加特定的 S3 密钥对，请运行以下形式的命令
+radosgw-admin key create --uid=foo --key-type=s3 --access-key fooAccessKey --secret-key fooSecretKey
+{ "user_id": "foo",
+"rados_uid": 0,
+"display_name": "foo",
+"email": "foo@example.com",
+"suspended": 0,
+"keys": [
+{ "user": "foo",
+"access_key": "fooAccessKey",
+"secret_key": "fooSecretKey"}],
+}
+注意
+您可以为用户创建多个 S3 密钥对。
+添加 Swift 密钥
+要为子用户附加特定的 Swift 密钥，请运行以下形式的命令
+radosgw-admin key create --subuser=foo:bar --key-type=swift --secret-key barSecret
+{ "user_id": "foo",
+"rados_uid": 0,
+"display_name": "foo",
+"email": "foo@example.com",
+"suspended": 0,
+"subusers": [
+{ "id": "foo:bar",
+"permissions": "full-control"}],
+"swift_keys": [
+{ "user": "foo:bar",
+"secret_key": "asfghjghghmgm"}]}
+注意
+一个子用户只能有一个 Swift 密钥。
+将子用户与 S3 密钥对关联
+如果子用户与 S3 密钥对相关联，则子用户也可以用于 S3 API。要将子用户与 S3 密钥对关联，请运行以下形式的命令
+radosgw-admin key create --subuser=foo:bar --key-type=s3 --access-key barAccessKey --secret-key barSecretKey
+{ "user_id": "foo",
+"rados_uid": 0,
+"display_name": "foo",
+"email": "foo@example.com",
+"suspended": 0,
+"subusers": [
+{ "id": "foo:bar",
+"permissions": "full-control"}],
+"keys": [
+{ "user": "foo:bar",
+"access_key": "barAccessKey",
+"secret_key": "barSecretKey"}],
+}
+删除 S3 密钥对
+要删除 S3 密钥对，请指定要删除的访问密钥。运行以下形式的命令
+radosgw-admin key rm --uid=foo --key-type=s3 --access-key=fooAccessKey
+删除 Swift 密钥
+要删除 Swift 密钥，请运行以下形式的命令
+radosgw-admin key rm --subuser=foo:bar --key-type=swift
+添加或删除管理员功能
+Ceph Storage Cluster 提供 Admin Ops API，使用户能够通过 REST API 执行管理功能。默认情况下，用户无权访问此 API。要使用户能够行使管理功能，请向用户提供管理功能。
+要向用户添加管理功能，请运行以下形式的命令
+radosgw-admin caps add --uid={uid} --caps={caps}
+您可以向用户、存储桶、元数据和使用情况（利用率）添加读取、写入或所有功能。为此，请使用以下形式的命令行选项
+--caps="[users|buckets|metadata|usage|zone|amz-cache|info|bilog|mdlog|datalog|user-policy|oidc-provider|roles|ratelimit|user-info-without-keys|accounts]=[\*|read|write|read, write]"
+例如
+radosgw-admin caps add --uid=johndoe --caps="users=*;buckets=*"
+要从用户中删除管理功能，请运行以下形式的命令
+radosgw-admin caps rm --uid=johndoe --caps={caps}
+管理员和系统用户
+具有 --admin 或 --system 标志的用户具有全局读取和写入权限。这些权限适用于所有 API，包括 S3 和 Swift，不像管理员功能，并且不能被 IAM 策略拒绝。
+--system 标志应仅按照 Multisite Configuration 中的文档使用。
+--admin 标志可用于故障排除和恢复。例如，如果用户意外删除了对存储桶或对象的权限，则可以使用管理员用户的凭据来发出恢复它们所需的 S3/Swift API 请求。
+警告
+不使用时，请考虑删除管理员用户或禁用其访问密钥。不要向不受信任的用户授予管理员权限。
+要创建管理员用户
+radosgw-admin user create --uid={username} --display-name="{display-name}" --admin
+要向现有用户添加管理员标志
+radosgw-admin user modify --uid={username} --admin
+要从现有用户中删除管理员标志
+radosgw-admin user modify --uid={username} --admin=0
+配额管理
+Ceph Object Gateway 使您能够为用户拥有的用户和存储桶设置配额。配额包括存储桶中的最大对象数和存储桶可容纳的最大存储大小。
+最大对象数： --max-objects 设置允许您指定最大对象数。负值会禁用此设置。
+最大大小： --max-size 选项允许您以 B/K/M/G/T 为单位指定配额大小，其中 B 是默认值。负值会禁用此设置。
+配额范围： --quota-scope 选项设置配额的范围。选项为 bucket 和 user。
+设置用户配额
+用户配额是所有者拥有的所有存储桶的总和。
+在启用配额之前，必须首先设置配额参数。要设置配额参数，请运行以下形式的命令
+radosgw-admin quota set --quota-scope=user --uid=&lt;uid&gt; [--max-objects=&lt;num objects&gt;] [--max-size=&lt;max size&gt;]
+例如
+radosgw-admin quota set --quota-scope=user --uid=johndoe --max-objects=1024 --max-size=1024B
+将负值作为 --max-objects 或 --max-size 的参数传递会禁用给定的配额属性。
+启用和禁用用户配额
+设置用户配额后，必须启用它才能生效。要启用用户配额，请运行以下形式的命令
+radosgw-admin quota enable --quota-scope=user --uid=&lt;uid&gt;
+要禁用已启用的用户配额，请运行以下形式的命令
+radosgw-admin quota disable --quota-scope=user --uid=&lt;uid&gt;
+设置存储桶配额
+如果指定了 --bucket 选项，则存储桶配额适用于具有指定名称的单个存储桶。否则，如果指定了 --uid 选项，则存储桶配额适用于具有指定 UID 的用户拥有的所有存储桶。
+要设置存储桶配额，请运行以下形式的命令
+radosgw-admin quota set --quota-scope=bucket {--bucket=&lt;bucket name&gt; | --uid=&lt;uid&gt;} [--max-objects=&lt;num objects&gt;] [--max-size=&lt;max size&gt;]
+--max-objects 或 --max-size 的负值表示特定的配额属性已禁用。
+启用和禁用存储桶配额
+设置存储桶配额后，必须启用它才能生效。要启用存储桶配额，请运行以下形式的命令
+radosgw-admin quota enable --quota-scope=bucket --uid=&lt;uid&gt;
+要禁用已启用的存储桶配额，请运行以下形式的命令
+radosgw-admin quota disable --quota-scope=bucket --uid=&lt;uid&gt;
+获取配额设置
+您可以通过用户信息 API 访问每个用户的配额设置。要使用 CLI 接口读取用户配额设置信息，请运行以下形式的命令
+radosgw-admin user info --uid=&lt;uid&gt;
+更新配额统计信息
+配额统计信息是异步更新的。您可以手动更新所有用户和所有存储桶的配额统计信息，以强制更新最新的配额统计信息。要更新所有用户和所有存储桶的配额统计信息以检索最新的配额统计信息，请运行以下形式的命令
+radosgw-admin user stats --uid=&lt;uid&gt; --sync-stats
+获取用户使用情况统计信息
+要查看用户消耗了多少配额，请运行以下形式的命令
+radosgw-admin user stats --uid=&lt;uid&gt;
+注意
+运行带有 --sync-stats 选项的 radosgw-admin user stats 以接收最新数据。
+默认配额
+您可以在 Ceph Object Gateway 配置中设置默认配额。这些默认值仅在创建新用户时使用，对现有用户没有影响。 如果在 Ceph Object Gateway 配置中设置了默认配额，则为所有随后创建的用户设置该配额，并且启用该配额。请参阅 Ceph Object Gateway Config Reference 中的 rgw_bucket_default_quota_max_objects、rgw_bucket_default_quota_max_size、rgw_user_default_quota_max_objects、rgw_user_default_quota_max_size、rgw_account_default_quota_max_objects 和 rgw_account_default_quota_max_size。
+配额缓存
+配额统计信息由每个 RGW 实例缓存。如果部署了多个 RGW 实例，则此缓存可能会阻止配额得到完美执行，因为每个实例可能具有不同的配额设置集。
+以下是控制此行为的选项
+rgw_bucket_quota_ttl rgw_user_quota_bucket_sync_interval rgw_user_quota_sync_interval
+增加这些值将使配额操作更高效，代价是增加了多个 RGW 实例可能无法始终保持最新配额设置的可能性。减少这些值会使多个 RGW 实例更接近完美的配额同步。
+如果所有三个值都设置为 0，则配额缓存实际上被禁用，并且多个实例将具有完美的配额执行。请参阅 Ceph Object Gateway Config Reference。
+读取/写入全局配额
+您可以在句点配置中读取和写入全局配额设置。要查看全局配额设置，请运行以下命令
+radosgw-admin global quota get
+可以使用 quota set、quota enable 和 quota disable 命令的 global quota 对应项来操作全局配额设置，如以下示例所示
+radosgw-admin global quota set --quota-scope bucket --max-objects 1024
+radosgw-admin global quota enable --quota-scope bucket
+注意
+在存在领域和句点的多站点配置中，必须使用 period update --commit 提交对全局配额的更改。如果没有句点，则必须重新启动 RGW 实例才能使更改生效。
+速率限制管理
+可以为 Ceph Object Gateway 设置用户和存储桶的配额。“速率限制”包括每个累积间隔的最大读取操作数和写入操作数，以及每个累积间隔内每个用户或每个存储桶可写入或读取的字节数。它还包括每个累积间隔的最大列表请求数和删除操作数。累积间隔由 rgw_ratelimit_interval 选项配置。默认值为 60 秒。（注意：速率限制目前不支持 S3 多对象删除操作）
+配置的限制应除以活动对象网关的数量。例如，如果“用户 A”被限制为每分钟 10 次操作，并且集群中有两个对象网关，则“用户 A”的限制应为 5（每分钟 10 次操作 / 2 个 RGW）。如果请求未在 RGW 之间平衡，则速率限制可能会未充分利用。例如：如果操作限制为 5，并且有两个 RGW，但负载均衡器仅将负载发送给其中一个 RGW，则有效限制为 5 次操作，因为此限制是按 RGW 执行的。
+读取请求和写入请求
+在其 REST 请求中使用 GET 方法或 HEAD 方法的操作是“读取请求”。所有其他请求都是“写入请求”。
+指标的工作原理
+每个对象网关分别跟踪每个用户的指标和存储桶指标。这些指标不与其他网关共享。配置的限制应除以活动对象网关的数量。例如，如果“用户 A”被限制为每个累积间隔 10 次操作，并且集群中有两个对象网关，则“用户 A”的限制应为 5（每个累积间隔 10 次操作 / 2 个 RGW）。如果请求未在 RGW 之间平衡，则速率限制可能会未充分利用。例如：如果操作限制为 5，并且有两个 RGW，但负载均衡器仅将负载发送给其中一个 RGW，则有效限制为 5 次操作，因为此限制是按 RGW 执行的。如果已达到为存储桶设置的速率限制，但尚未达到为用户设置的速率限制，则请求将被取消。反之亦然：如果已达到为用户设置的速率限制，但尚未达到为存储桶设置的速率限制，则请求将被取消。
+带宽的核算仅在请求被接受后才发生。这意味着即使在请求执行期间达到存储桶速率限制或用户速率限制，请求仍将继续。RGW 会跟踪由超出配置值的字节组成的“债务”；产生此类债务的用户或存储桶在“债务”偿清之前无法发送更多请求。 “债务”的最大大小是每个累积间隔最大读取/写入字节的两倍。如果“用户 A”受每个累积间隔 1 字节读取限制的约束，并且他们尝试 GET 大小为 1 GB 的对象，则 GET 操作将失败。在“用户 A”完成此 1 GB 操作后，RGW 会阻止用户的请求长达两个累积间隔。在此时间过去后，“用户 A”将能够再次发送 GET 请求。
+存储桶： --bucket 选项允许您为存储桶指定速率限制。
+用户： --uid 选项允许您为用户指定速率限制。
+最大读取操作数： --max-read-ops 设置允许您指定每个累积间隔每个 RGW 实例的最大读取操作数。0 值会禁用节流。
+最大读取字节数： --max-read-bytes 设置允许您限制每个累积间隔每个 RGW 实例的读取字节数。0 值会禁用节流。
+最大写入操作数： --max-write-ops 设置允许您指定每个累积间隔每个 RGW 实例的最大写入操作数。0 值会禁用节流。
+最大写入字节数： --max-write-bytes 设置允许您指定每个累积间隔每个 RGW 实例的最大写入字节数。0 值会禁用节流。
+最大列表操作数： --max-list-ops 设置允许您指定每个累积间隔每个 RGW 实例的最大存储桶列表请求数。0 值会禁用节流。
+最大删除操作数： --max-delete-ops 设置允许您指定每个累积间隔每个 RGW 实例的最大删除操作数。0 值会禁用节流。
+速率限制范围： --ratelimit-scope 选项设置速率限制的范围。选项为 bucket、user 和 anonymous。存储桶速率限制适用于存储桶。用户速率限制适用于用户。anonymous 选项适用于未经身份验证的用户。匿名范围仅适用于全局速率限制。
+设置用户速率限制
+在启用速率限制之前，必须首先设置速率限制参数。以下是设置速率限制参数的命令的一般形式
+radosgw-admin ratelimit set --ratelimit-scope=user --uid=&lt;uid&gt; \
+&lt;[--max-read-ops=&lt;num ops&gt;] [--max-read-bytes=&lt;num bytes&gt;] \
+[--max-write-ops=&lt;num ops&gt;] [--max-write-bytes=&lt;num bytes&gt;] \
+[--max-list-ops=&lt;num ops&gt;] [--max-delete-ops=&lt;num ops&gt;]&gt;
+使用 radosgw-admin ratelimit set 设置速率限制的示例可能如下所示
+radosgw-admin ratelimit set --ratelimit-scope=user --uid=johndoe --max-read-ops=1024 --max-write-bytes=10240
+分配给 --max-read-ops、--max-read-bytes、--max-write-ops 或 --max-write-bytes 的值 0 会禁用指定的速率限制。
+获取用户速率限制
+radosgw-admin ratelimit get 命令返回当前配置的速率限制参数。
+以下是返回当前配置的限制参数的命令的一般形式
+radosgw-admin ratelimit get --ratelimit-scope=user --uid=&lt;uid&gt;
+使用 radosgw-admin ratelimit get 返回速率限制参数的示例可能如下所示
+radosgw-admin ratelimit get --ratelimit-scope=user --uid=johndoe
+分配给 --max-read-ops、--max-read-bytes、--max-write-ops 或 --max-write-bytes 的值 0 会禁用指定的速率限制。
+启用和禁用用户速率限制
+设置用户速率限制后，必须启用它才能使其生效。运行以下形式的命令以启用用户速率限制
+radosgw-admin ratelimit enable --ratelimit-scope=user --uid=&lt;uid&gt;
+要禁用已启用的用户速率限制，请运行以下形式的命令
+radosgw-admin ratelimit disable --ratelimit-scope=user --uid=johndoe
+设置存储桶速率限制
+在启用速率限制之前，必须首先设置速率限制参数。以下是设置速率限制参数的命令的一般形式
+radosgw-admin ratelimit set --ratelimit-scope=bucket --bucket=&lt;bucket&gt; \
+&lt;[--max-read-ops=&lt;num ops&gt;] [--max-read-bytes=&lt;num bytes&gt;] \
+[--max-write-ops=&lt;num ops&gt;] [--max-write-bytes=&lt;num bytes&gt;] \
+[--max-list-ops=&lt;num ops&gt;] [--max-delete-ops=&lt;num ops&gt;]&gt;
+使用 radosgw-admin ratelimit set 为存储桶设置速率限制的示例可能如下所示
+radosgw-admin ratelimit set --ratelimit-scope=bucket --bucket=mybucket --max-read-ops=1024 --max-write-bytes=10240
+分配给 --max-read-ops、--max-read-bytes、--max-write-ops 或 -max-write-bytes 的值 0 会禁用指定的存储桶速率限制。
+获取存储桶速率限制
+radosgw-admin ratelimit get 命令返回当前配置的速率限制参数。
+以下是返回当前配置的限制参数的命令的一般形式
+radosgw-admin ratelimit get --ratelimit-scope=bucket --bucket=&lt;bucket&gt;
+使用 radosgw-admin ratelimit get 返回存储桶速率限制参数的示例可能如下所示
+radosgw-admin ratelimit get --ratelimit-scope=bucket --bucket=mybucket
+分配给 --max-read-ops、--max-read-bytes、--max-write-ops 或 --max-write-bytes 的值 0 会禁用指定的速率限制。
+启用和禁用存储桶速率限制
+设置存储桶速率限制后，可以启用它。以下是启用存储桶速率限制的 radosgw-admin ratelimit enable 命令的一般形式
+radosgw-admin ratelimit enable --ratelimit-scope=bucket --bucket=&lt;bucket&gt;
+可以通过运行以下形式的命令来禁用已启用的存储桶速率限制
+radosgw-admin ratelimit disable --ratelimit-scope=bucket --bucket=mybucket
+读取和写入全局速率限制配置
+您可以在句点的配置中读取和写入全局速率限制设置。要查看全局速率限制设置，请运行以下命令
+radosgw-admin global ratelimit get
+可以使用 ratelimit set、ratelimit enable 和 ratelimit disable 命令的 global ratelimit 对应项来操作全局速率限制设置。每个用户和每个存储桶的速率限制配置会覆盖全局配置
+radosgw-admin global ratelimit set --ratelimit-scope bucket --max-read-ops=1024
+radosgw-admin global ratelimit enable --ratelimit-scope bucket
+全局速率限制可用于配置所有经过身份验证的用户的速率限制范围
+radosgw-admin global ratelimit set --ratelimit-scope user --max-read-ops=1024
+radosgw-admin global ratelimit enable --ratelimit-scope user
+全局速率限制可用于配置所有未经身份验证的用户的速率限制范围
+radosgw-admin global ratelimit set --ratelimit-scope=anonymous --max-read-ops=1024
+radosgw-admin global ratelimit enable --ratelimit-scope=anonymous
+注意
+在存在领域和句点的多站点配置中，对全局速率限制的任何更改都必须使用 period update --commit 提交。如果没有句点，则必须重新启动 RGW 实例才能使更改生效。
+用法
+Ceph Object Gateway 记录每个用户的使用情况。您可以在指定的日期范围内跟踪每个用户的使用情况。
+在 ceph.conf 的 [client.rgw] 部分添加 rgw_enable_usage_log = true 并重新启动 radosgw 服务。
+注意
+在 Ceph 具有处理所有设置选项方式的可链接宏之前，我们建议您在中心配置或 ceph.conf 中设置 rgw_enable_usage_log = true 并重新启动所有 RGW。
+选项包括
+开始日期： --start-date 选项允许您从指定的开始日期和可选的开始时间（格式： yyyy-mm-dd [HH:MM:SS]）过滤使用情况统计信息。
+结束日期： --end-date 选项允许您过滤到特定结束日期和可选的结束时间（格式： yyyy-mm-dd [HH:MM:SS]）的使用情况。
+日志条目： --show-log-entries 选项允许您指定是否在使用情况统计信息中包含日志条目（选项：true | false）。
+注意
+您可以指定精确到分钟和秒的时间，但指定的时间仅以一小时分辨率存储。
+显示使用情况
+要显示使用情况统计信息，请使用 radosgw-admin usage show 命令。要显示特定用户的使用情况，必须指定用户 ID。您还可以指定开始日期、结束日期以及是否显示日志条目。以下是此类命令的示例
+radosgw-admin usage show --uid=johndoe --start-date=2012-03-01 --end-date=2012-04-01
+您可以省略用户 ID 来显示所有用户的使用情况信息摘要，如以下示例命令所示
+radosgw-admin usage show --show-log-entries=false
+修剪使用情况
+使用情况日志可能会消耗大量的存储空间，尤其是随着时间的推移和大量使用。您可以修剪所有用户和特定用户的使用情况日志。您还可以指定修剪操作的日期范围，如以下示例命令所示
+radosgw-admin usage trim --start-date=2010-01-01 --end-date=2010-12-31
+radosgw-admin usage trim --uid=johndoe
+radosgw-admin usage trim --uid=johndoe --end-date=2013-12-31
+使用情况日志密钥转换
+Umbrella 版本中的新功能。
+rgw_usage_log_key_transition 配置选项控制 RGW 在 Umbrella 版本中如何处理使用情况日志密钥。此选项默认启用，以确保与现有使用情况日志兼容。
+在以前的版本中，以 '0' 开头的用户/付款人 ID 的使用情况日志密钥可能会干扰基于时间的日志密钥，导致日志修剪和迭代出现问题。新密钥格式添加了 '~' 前缀以防止此冲突。
+当 rgw_usage_log_key_transition 启用（默认值：true）时，RGW 将
+处理新旧使用情况日志密钥格式
+在正常操作期间自动将旧密钥迁移到新格式
+确保在过渡期间正确修剪和读取使用情况日志
+一旦所有旧的使用情况日志都已迁移，您可以禁用此选项以提高性能
+ceph config set client.rgw rgw_usage_log_key_transition false
+注意
+仅在确认系统中没有剩余旧使用情况日志条目后才禁用 rgw_usage_log_key_transition，因为这会阻止 RGW 处理旧密钥格式，并可能导致使用情况统计信息不完整或修剪操作失败。
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+Previous Next
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

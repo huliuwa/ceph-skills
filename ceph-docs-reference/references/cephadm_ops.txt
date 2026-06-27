@@ -1,0 +1,372 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+Cephadm 操作 — Ceph 文档
+Cephadm
+Cephadm 操作
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+兼容性和稳定性
+使用 cephadm 部署新的 Ceph 集群
+将现有集群转换为 cephadm
+主机管理
+服务管理
+证书管理
+升级 Ceph
+Cephadm 操作
+查看 cephadm 日志消息
+Ceph 守护程序控制
+启动和停止守护程序
+重新部署或重新配置守护程序
+轮换守护程序的身份验证密钥
+Ceph 守护程序日志
+记录到 journald
+记录到文件
+每节点 cephadm 日志
+引导期间设置 cephadm 日志目的地
+在现有集群上设置 cephadm 日志目的地
+数据位置
+磁盘使用情况
+健康检查
+CEPHADM 操作
+集群配置检查
+客户端密钥环和配置
+列出客户端密钥环
+将密钥环置于管理之下
+禁用密钥环文件管理
+/etc/ceph/ceph.conf
+将 ceph.conf 分发给没有密钥环的主机
+使用 Placement Specs 指定哪些主机获取密钥环
+将 ceph.conf 分发给标记为 bare_config 的主机
+限制无密码 sudo 访问
+清除集群
+更换设备
+客户端设置
+故障排除
+Cephadm 功能规划
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+Cephadm 操作
+查看 cephadm 日志消息
+cephadm 编排器模块将日志写入 cephadm 集群日志通道。您可以通过实时读取日志来监控 Ceph 的活动。运行以下命令以实时查看日志
+span.prompt1:before {
+content: "# ";
+}
+ceph -W cephadm
+默认情况下，此命令显示信息级别事件及更高级别。要查看调试级别消息以及信息级别事件，请运行以下命令
+ceph config set mgr mgr/cephadm/log_to_cluster_level debug
+ceph -W cephadm --watch-debug
+警告
+调试消息非常冗长！
+您可以通过运行以下命令查看最近的事件
+ceph log last cephadm
+这些事件也会记录到监控主机上的 ceph.cephadm.log 文件以及监控守护程序的 stderr。
+Ceph 守护程序控制
+启动和停止守护程序
+您可以使用以下命令停止、启动或重新启动守护程序
+ceph orch daemon stop &lt;daemonid&gt;
+ceph orch daemon start &lt;daemonid&gt;
+ceph orch daemon restart &lt;daemonid&gt;
+您也可以对某个服务的所有守护程序执行相同的操作
+ceph orch stop &lt;serviceid&gt;
+ceph orch start &lt;serviceid&gt;
+ceph orch restart &lt;serviceid&gt;
+注意
+在运行中的集群上运行 ceph orch restart osd.myosdservice 通常是不安全的，因为它不关注 CRUSH 故障域，并行 OSD 重启可能导致暂时的不可用，在极少数情况下甚至会导致数据丢失。
+重新部署或重新配置守护程序
+可以使用 redeploy 命令停止、重新创建和重新启动守护程序的容器
+ceph orch daemon redeploy &lt;name&gt; [--image &lt;image&gt;]
+可以选择提供容器镜像名称以强制使用特定镜像（而不是 container_image 配置值指定的镜像）。
+如果只需要重新生成 ceph 配置，您还可以发出 reconfig 命令，它将重写 ceph.conf 文件，但不会触发守护程序重启。
+ceph orch daemon reconfig &lt;name&gt;
+轮换守护程序的身份验证密钥
+集群中的所有 Ceph 和网关守护程序都有一个用于连接和验证集群的密钥。可以使用以下命令轮换（即替换为新密钥）此密钥
+ceph orch daemon rotate-key &lt;name&gt;
+对于 MDS、OSD 和 MGR 守护程序，这不需要守护程序重启。但是，对于其他守护程序（例如 RGW），守护程序可能会重启以切换到新密钥。
+Ceph 守护程序日志
+记录到 journald
+Ceph 守护程序传统上将日志写入 /var/log/ceph。Ceph 守护程序默认记录到 journald，Ceph 日志由容器运行时环境捕获。它们可以通过 journalctl 访问。
+注意
+在 Quincy 之前，ceph 守护程序将日志记录到 stderr。
+记录到 journald 的示例
+例如，要查看 ID 为 5c5a50ae-272a-455d-99e9-32c6a013e694 的集群中守护程序 mon.foo 的日志，命令将类似于
+journalctl -u ceph-5c5a50ae-272a-455d-99e9-32c6a013e694@mon.foo
+这在日志级别较低的正常操作中效果很好。
+记录到文件
+您也可以配置 Ceph 守护程序记录到文件而不是 journald，如果您更喜欢日志出现在文件中（就像在早期的、pre-cephadm、pre-Octopus 版本的 Ceph 中那样）。当 Ceph 记录到文件时，日志会出现在 /var/log/ceph/&lt;cluster-fsid&gt; 中。如果您选择配置 Ceph 记录到文件而不是 journald，请记住配置 Ceph 以使其不会记录到 journald（下面将介绍此命令）。
+启用记录到文件
+要启用记录到文件，请运行以下命令
+ceph config set global log_to_file true
+ceph config set global mon_cluster_log_to_file true
+禁用记录到 journald
+如果您选择记录到文件，我们建议禁用记录到 journald，否则所有内容都会记录两次。运行以下命令禁用记录到 stderr
+ceph config set global log_to_stderr false
+ceph config set global mon_cluster_log_to_stderr false
+ceph config set global log_to_journald false
+ceph config set global mon_cluster_log_to_journald false
+注意
+您可以在引导新集群时通过传递 --log-to-file 来更改默认设置。
+修改日志保留计划
+默认情况下，cephadm 在每个主机上设置日志轮换以轮换这些文件。您可以通过修改 /etc/logrotate.d/ceph.&lt;cluster-fsid&gt; 来配置日志保留计划。
+每节点 cephadm 日志
+cephadm 可执行文件，无论是用户直接运行还是由 cephadm 编排模块运行，也可能生成日志。它独立于在容器中运行的其他 Ceph 组件。默认情况下，此可执行文件记录到文件 /var/log/ceph/cephadm.log。
+此日志目的地是可配置的，您可以选择记录到文件、syslog/journal 或两者。
+引导期间设置 cephadm 日志目的地
+cephadm 命令可以带选项 --log-dest=file 或 --log-dest=syslog 或两者执行。这些选项控制 cephadm 将为每次调用存储持久日志的位置。当为 cephadm bootstrap 命令指定这些选项时，系统将自动记录这些设置，以供 cephadm 编排模块将来调用 cephadm 时使用。
+例如
+cephadm --log-dest=syslog bootstrap # ... other bootstrap arguments ...
+如果您想手动指定引导期间使用的确切日志目的地，独立于 --log-dest 选项，您可以在初始配置文件中 [mgr] 部分下添加配置键 mgr/cephadm/cephadm_log_destination。该键的有效值包括：file、syslog 和 file,syslog。
+例如
+cat &gt;/tmp/bootstrap.conf &lt;&lt;EOF
+[mgr]
+mgr/cephadm/cephadm_log_destination = syslog
+EOF
+cephadm bootstrap --config /tmp/bootstrap.conf # ... other bootstrap arguments ...
+在现有集群上设置 cephadm 日志目的地
+可以通过将 mgr/cephadm/cephadm_log_destination 配置值设置为 file、syslog 或 file,syslog 之一来配置现有 Ceph 集群使用特定的 cephadm 日志目的地。这将导致 cephadm 编排模块运行 cephadm，以便日志分别转到 /var/log/ceph/cephadm.log、syslog/journal 或两者。
+例如
+# set the cephadm executable to log to syslog
+ceph config set mgr mgr/cephadm/cephadm_log_destination syslog
+# set the cephadm executable to log to both the log file and syslog
+ceph config set mgr mgr/cephadm/cephadm_log_destination file,syslog
+# set the cephadm executable to log to the log file
+ceph config set mgr mgr/cephadm/cephadm_log_destination file
+注意
+如果您直接执行 cephadm 命令，例如 cephadm shell，则此选项将不适用。要让 cephadm 记录到除默认日志文件以外的位置时，请直接运行 cephadm 命令时使用上面引导部分所述的 --log-dest 选项。
+数据位置
+Cephadm 将守护程序数据和日志存储在与旧的、pre-cephadm（pre Octopus）版本的 ceph 不同的位置
+/var/log/ceph/&lt;cluster-fsid&gt; 包含所有集群日志。默认情况下，cephadm 通过 stderr 和容器运行时记录日志。除非您已启用记录到文件，否则这些日志将不存在，如 cephadm-logs 中所述。
+/var/lib/ceph/&lt;cluster-fsid&gt; 包含所有集群守护程序数据（日志除外）。
+/var/lib/ceph/&lt;cluster-fsid&gt;/&lt;daemon-name&gt; 包含单个守护程序的所有数据。
+/var/lib/ceph/&lt;cluster-fsid&gt;/crash 包含集群的崩溃报告。
+/var/lib/ceph/&lt;cluster-fsid&gt;/removed 包含已由 cephadm 删除的有状态守护程序（例如，监控器、prometheus）的旧守护程序数据目录。
+磁盘使用情况
+因为一些 Ceph 守护程序（特别是监控器和 prometheus）在 /var/lib/ceph 中存储了大量数据，我们建议将此目录移动到其自己的磁盘、分区或逻辑卷上，以免占满根文件系统。
+健康检查
+cephadm 模块提供了额外的健康检查来补充集群提供的默认健康检查。这些额外的健康检查分为两类
+cephadm 操作：当 cephadm 模块处于活动状态时，始终执行此类别的健康检查。
+集群配置：这些健康检查是可选的，侧重于集群中主机的配置。
+CEPHADM 操作
+CEPHADM_PAUSED
+这表明 cephadm 后台工作已通过 ceph orch pause 暂停。Cephadm 继续执行被动监控活动（例如检查主机和守护程序状态），但它不会进行任何更改（例如部署或删除守护程序）。
+通过运行以下命令恢复 cephadm 工作
+ceph orch resume
+CEPHADM_STRAY_HOST
+这表明一个或多个主机正在运行 Ceph 守护程序，但未注册为由 cephadm 管理的主机。这意味着这些服务当前无法由 cephadm 管理（例如，重启、升级、包含在 ceph orch ps 中）。
+您可以通过运行以下命令来管理主机
+ceph orch host add *&lt;hostname&gt;*
+注意
+您可能需要配置对远程主机的 SSH 访问才能使其工作。
+有关主机名和域名，请参阅 完全限定域名与裸主机名 以获取更多信息。
+或者，您可以手动连接到主机，并确保该主机上的服务已删除或迁移到由 cephadm 管理的主机。
+可以通过运行以下命令完全禁用此警告
+ceph config set mgr mgr/cephadm/warn_on_stray_hosts false
+CEPHADM_STRAY_DAEMON
+一个或多个 Ceph 守护程序正在运行，但未由 cephadm 管理。这可能是因为它们是使用不同的工具部署的，或者是因为它们是手动启动的。这些服务当前无法由 cephadm 管理（例如，重启、升级或包含在 ceph orch ps 中）。
+如果守护程序是有状态的（监控器或 OSD），则应由 cephadm 采用；请参阅 将现有集群转换为 cephadm。对于无状态守护程序，通常最简单的方法是使用 ceph orch apply 命令配置新守护程序，然后停止未管理的守护程序。
+如果流浪守护程序正在未由 cephadm 管理的主机上运行，您可以通过运行以下命令来管理主机
+ceph orch host add *&lt;hostname&gt;*
+注意
+您可能需要配置对远程主机的 SSH 访问才能使其工作。
+有关主机名和域名，请参阅 完全限定域名与裸主机名 以获取更多信息。
+可以通过运行以下命令完全禁用此警告
+ceph config set mgr mgr/cephadm/warn_on_stray_daemons false
+CEPHADM_HOST_CHECK_FAILED
+一个或多个主机未通过基本的 cephadm 主机检查，该检查验证 (1) 主机是否可达且 cephadm 可以在其上执行，以及 (2) 主机是否满足基本先决条件，例如正常运行的容器运行时（podman 或 docker）和正常的时间同步。如果此测试失败，cephadm 将无法管理该主机上的服务。
+您可以通过运行以下命令手动运行此检查
+ceph cephadm check-host *&lt;hostname&gt;*
+您可以通过运行以下命令从管理中删除损坏的主机
+ceph orch host rm *&lt;hostname&gt;*
+您可以通过运行以下命令禁用此健康警告
+ceph config set mgr mgr/cephadm/warn_on_failed_host_check false
+集群配置检查
+Cephadm 会定期扫描集群中的每个主机，以了解操作系统、磁盘、网络接口等的状态。然后可以分析此信息以确保集群中主机之间的一致性，从而识别任何配置异常。
+启用集群配置检查
+这些配置检查是可选功能，通过运行以下命令启用
+ceph config set mgr mgr/cephadm/config_checks_enabled true
+集群配置检查返回的状态
+配置检查在每次主机扫描后触发。cephadm 日志条目将显示配置检查的当前状态和结果，如下所示
+禁用状态 (config_checks_enabled false)
+ALL cephadm checks are disabled, use 'ceph config set mgr mgr/cephadm/config_checks_enabled true' to enable
+启用状态 (config_checks_enabled true)
+CEPHADM 8/8 checks enabled and executed (0 bypassed, 0 disabled). No issues detected
+管理配置检查（子命令）
+配置检查本身通过几个 cephadm 子命令进行管理。
+要确定是否启用了配置检查，请运行以下命令
+ceph cephadm config-check status
+此命令返回配置检查器的状态，为“Enabled”或“Disabled”。
+要列出所有配置检查及其当前状态，请运行以下命令
+# ceph cephadm config-check ls
+NAME             HEALTHCHECK                      STATUS   DESCRIPTION
+kernel_security  CEPHADM_CHECK_KERNEL_LSM         enabled  check that SELINUX/Apparmor profiles are consistent across cluster hosts
+os_subscription  CEPHADM_CHECK_SUBSCRIPTION       enabled  check that subscription states are consistent for all cluster hosts
+public_network   CEPHADM_CHECK_PUBLIC_MEMBERSHIP  enabled  check that all hosts have a network interface on the Ceph public_network
+osd_mtu_size     CEPHADM_CHECK_MTU                enabled  check that OSD hosts share a common MTU setting
+osd_linkspeed    CEPHADM_CHECK_LINKSPEED          enabled  check that OSD hosts share a common network link speed
+network_missing  CEPHADM_CHECK_NETWORK_MISSING    enabled  check that the cluster/public networks as defined exist on the Ceph hosts
+ceph_release     CEPHADM_CHECK_CEPH_RELEASE       enabled  check for Ceph version consistency: all Ceph daemons should be the same release unless upgrade is in progress
+kernel_version   CEPHADM_CHECK_KERNEL_VERSION     enabled  checks that the maj.min version of the kernel is consistent across Ceph hosts
+可以使用每个配置检查的名称通过运行以下形式的命令来启用或禁用特定检查：
+ceph cephadm config-check disable &lt;name&gt;
+例如
+ceph cephadm config-check disable kernel_security
+CEPHADM_CHECK_KERNEL_LSM
+集群中的每个主机都应在相同的 Linux 安全模块 (LSM) 状态下运行。例如，如果大多数主机以 enforcing 模式运行 SELINUX，则任何未在此模式下运行的主机都会被标记为异常并引发健康检查 (WARNING) 状态。
+CEPHADM_CHECK_SUBSCRIPTION
+此检查与操作系统供应商订阅的状态相关。此检查仅针对使用 RHEL 的主机执行，有助于确认所有主机都已激活订阅，从而确保补丁和更新可用。
+CEPHADM_CHECK_PUBLIC_MEMBERSHIP
+集群的所有成员都应该在至少一个公共网络子网上配置了网络接口。不在公共网络上的主机将依赖路由，这可能会影响性能。
+CEPHADM_CHECK_MTU
+OSD 主机上网络接口的 MTU 是影响一致性能的关键因素。此检查检查运行 OSD 服务的主机，以确保 MTU 在集群内配置一致。这是通过确定大多数主机使用的 MTU 设置来确定的。任何异常都会导致健康检查。
+CEPHADM_CHECK_LINKSPEED
+此检查类似于 MTU 检查。链路速度一致性是影响一致集群性能的因素，OSD 节点网络接口的 MTU 也是如此。此检查确定大多数 OSD 主机共享的链路速度，并对设置为较低链路速度速率的任何主机运行健康检查。
+CEPHADM_CHECK_NETWORK_MISSING
+public_network 和 cluster_network 设置支持 IPv4 和 IPv6 的子网定义。如果在集群中的任何主机上未找到这些设置，则会引发健康检查。
+CEPHADM_CHECK_CEPH_RELEASE
+在正常操作下，Ceph 集群运行相同 Ceph 版本（例如 Reef）的守护程序。此检查确定每个守护程序的活动版本，并报告任何异常作为健康检查。如果正在进行升级，则绕过此检查。
+CEPHADM_CHECK_KERNEL_VERSION
+跨主机检查操作系统内核版本 (maj.min) 的一致性。大多数主机的内核版本用作识别异常的基础。
+客户端密钥环和配置
+Cephadm 可以将 ceph.conf 文件和客户端密钥环文件的副本分发给主机。从版本 16.2.10 (Pacific) 和 17.2.1 (Quincy) 开始，除了默认位置 /etc/ceph/ 之外，cephadm 还将配置和密钥环文件存储在 /var/lib/ceph/&lt;fsid&gt;/config 目录中。在用于通过 CLI 管理集群的任何主机上存储配置和 client.admin 密钥环的副本通常是个好主意。默认情况下，cephadm 会对任何带有 _admin 标签的节点执行此操作（通常包括引导主机）。
+注意
+Ceph 守护程序仍将使用 /etc/ceph/ 上的文件。新的配置位置 /var/lib/ceph/&lt;fsid&gt;/config 仅由 cephadm 使用。将此配置目录置于 fsid 下有助于 cephadm 加载与集群相关的配置。
+当客户端密钥环置于管理之下时，cephadm 将
+根据指定的放置规范（请参阅 守护程序放置）构建目标主机列表
+将 /etc/ceph/ceph.conf 文件的副本存储在指定主机上
+将 ceph.conf 文件的副本存储在指定主机上的 /var/lib/ceph/&lt;fsid&gt;/config/ceph.conf
+将 ceph.client.admin.keyring 文件的副本存储在指定主机上的 /var/lib/ceph/&lt;fsid&gt;/config/ceph.client.admin.keyring
+将密钥环文件的副本存储在指定主机上
+根据需要更新 ceph.conf 文件（例如，由于集群监控器发生更改）
+如果实体的密钥发生更改（例如，通过 ceph auth ... 命令），则更新密钥环文件
+确保密钥环文件具有指定的权限和指定的模式
+禁用客户端密钥环管理时删除密钥环文件
+如果密钥环放置规范更新，则从旧主机上删除密钥环文件（根据需要）
+列出客户端密钥环
+要查看当前处于管理之下的客户端密钥环列表，请运行以下命令
+ceph orch client-keyring ls
+将密钥环置于管理之下
+要将密钥环置于管理之下，请运行以下形式的命令
+ceph orch client-keyring set &lt;entity&gt; &lt;placement&gt; [--mode=&lt;mode&gt;] [--owner=&lt;uid&gt;.&lt;gid&gt;] [--path=&lt;path&gt;]
+默认情况下，path 是 /etc/ceph/client.{entity}.keyring，这是 Ceph 默认查找的位置。在指定备用位置时要小心，因为现有文件可能会被覆盖。
+放置 *（所有主机）很常见。
+模式默认为 0600，所有权默认为 0:0（用户 root，组 root）。
+例如，要创建 client.rbd 密钥并将其部署到带有 rbd-client 标签的主机，并使其可由 uid/gid 107 (qemu) 读取，请运行以下命令
+ceph auth get-or-create-key client.rbd mon 'profile rbd' mgr 'profile rbd' osd 'profile rbd pool=my_rbd_pool'
+ceph orch client-keyring set client.rbd label:rbd-client --owner 107:107 --mode 640
+生成的密钥环文件是
+-rw-r-----. 1 qemu qemu 156 Apr 21 08:47 /etc/ceph/client.client.rbd.keyring
+默认情况下，cephadm 还将在写入密钥环的主机上管理 /etc/ceph/ceph.conf。可以通过在设置密钥环时传递 --no-ceph-conf 来禁用此功能。
+ceph orch client-keyring set client.foo label:foo 0:0 --no-ceph-conf
+禁用密钥环文件管理
+要禁用密钥环文件管理，请运行以下形式的命令
+ceph orch client-keyring rm &lt;entity&gt;
+注意
+这将删除以前写入集群节点的此实体的所有密钥环文件。
+/etc/ceph/ceph.conf
+将 ceph.conf 分发给没有密钥环的主机
+将 ceph.conf 文件分发给没有关联客户端密钥环文件的主机可能很有用。默认情况下，cephadm 仅将 ceph.conf 文件部署到也分发了客户端密钥环的主机（见上文）。要将配置文件写入没有客户端密钥环的主机，请运行以下命令
+ceph config set mgr mgr/cephadm/manage_etc_ceph_ceph_conf true
+使用 Placement Specs 指定哪些主机获取密钥环
+默认情况下，配置文件将写入所有主机（即 ceph orch host ls 列出的主机）。要指定哪些主机获取 ceph.conf，请运行以下形式的命令
+ceph config set mgr mgr/cephadm/manage_etc_ceph_ceph_conf_hosts &lt;placement spec&gt;
+例如，要将配置分发给带有 bare_config 标签的主机，请运行以下命令
+将 ceph.conf 分发给标记为 bare_config 的主机
+例如，要将配置分发给带有 bare_config 标签的主机，请运行以下命令
+ceph config set mgr mgr/cephadm/manage_etc_ceph_ceph_conf_hosts label:bare_config
+（有关放置规范的更多信息，请参阅 守护程序放置。）
+限制无密码 sudo 访问
+默认情况下，cephadm 安装指南建议为 cephadm 用户启用无密码 sudo。此选项最灵活且面向未来，但在所有环境中可能不受青睐。管理员可以将 sudo 限制为仅运行不带密码访问的精确命令列表。请注意，此列表可能在 Ceph 版本之间发生变化，选择此选项的管理员应阅读发行说明并查看目标版本的 Ceph 文档中的此列表。如果列表不同，则必须在升级之前扩展无密码 sudo 命令列表。
+需要无密码 sudo 支持的命令
+chmod
+chown
+ls
+mkdir
+mv
+rm
+sysctl
+touch
+true
+which（见注释）
+/usr/bin/cephadm 或 python 可执行文件（见注释）
+注意
+通常 cephadm 将执行 which 来确定可用的 python3 命令，然后在后续命令中使用 which 返回的命令。在配置 sudo 之前，运行 which python3 来确定要添加到 sudo 配置中的 python 命令。在一些罕见的配置中，将使用 /usr/bin/cephadm 来代替。
+可以使用 visudo 等工具配置 sudoers 文件，并添加或替换如下的用户配置行
+# assuming the cephadm user is named "ceph"
+ceph ALL=(ALL) NOPASSWD:/usr/bin/chmod,/usr/bin/chown,/usr/bin/ls,/usr/bin/mkdir,/usr/bin/mv,/usr/bin/rm,/usr/sbin/sysctl,/usr/bin/touch,/usr/bin/true,/usr/bin/which,/usr/bin/cephadm,/usr/bin/python3
+清除集群
+危险
+此操作将销毁此集群中存储的所有数据
+为了销毁集群并删除此集群中存储的所有数据，请禁用 cephadm 以停止所有编排操作（因此我们避免部署新守护程序）。
+ceph mgr module disable cephadm
+然后验证集群的 FSID
+ceph fsid
+从集群中的所有主机清除 ceph 守护程序
+# For each host:
+cephadm rm-cluster --force --zap-osds --fsid &lt;fsid&gt;
+更换设备
+ceph orch device replace 命令自动化了更换 OSD 底层设备的过程。以前，此过程需要在各个阶段进行手动干预。使用此新命令，所有必要的操作都会自动执行，从而简化了更换过程并改善了整体用户体验。
+注意
+这仅支持基于 LVM 部署的 OSD
+ceph orch device replace &lt;host&gt; &lt;device-path&gt;
+如果被更换的设备被多个 OSD 共享（例如：DB/WAL 设备被多个 OSD 共享），编排器将警告您。
+[ceph: root@ceph /]# ceph orch device replace osd-1 /dev/vdd
+Error EINVAL: /dev/vdd is a shared device.
+Replacing /dev/vdd implies destroying OSD(s): ['0', '1'].
+Please, *be very careful*, this can be a very dangerous operation.
+If you know what you are doing, pass --yes-i-really-mean-it
+如果您知道自己在做什么，可以继续并传递 --yes-i-really-mean-it。
+[ceph: root@ceph /]# ceph orch device replace osd-1 /dev/vdd --yes-i-really-mean-it
+Scheduled to destroy osds: ['6', '7', '8'] and mark /dev/vdd as being replaced.
+cephadm 将使 ceph-volume zap 并销毁所有相关设备，并将相应的 OSD 标记为 destroyed，以便保留不同的 OSD ID。
+[ceph: root@ceph-1 /]# ceph osd tree
+ID  CLASS  WEIGHT   TYPE NAME         STATUS     REWEIGHT  PRI-AFF
+-1         0.97659  root default
+-3         0.97659      host devel-1
+0    hdd  0.29300          osd.0     destroyed   1.00000  1.00000
+1    hdd  0.29300          osd.1     destroyed   1.00000  1.00000
+2    hdd  0.19530          osd.2            up   1.00000  1.00000
+3    hdd  0.19530          osd.3            up   1.00000  1.00000
+被更换的设备最终被视为 being replaced，从而阻止 cephadm 过快地重新部署 OSD。
+[ceph: root@ceph-1 /]# ceph orch device ls
+HOST     PATH      TYPE  DEVICE ID   SIZE  AVAILABLE  REFRESHED  REJECT REASONS
+osd-1  /dev/vdb  hdd               200G  Yes        13s ago
+osd-1  /dev/vdc  hdd               200G  Yes        13s ago
+osd-1  /dev/vdd  hdd               200G  Yes        13s ago    Is being replaced
+osd-1  /dev/vde  hdd               200G  No         13s ago    Has a FileSystem, Insufficient space (&lt;10 extents) on vgs, LVM detected
+osd-1  /dev/vdf  hdd               200G  No         13s ago    Has a FileSystem, Insufficient space (&lt;10 extents) on vgs, LVM detected
+如果出于任何原因需要清除设备上的“device replace header”，则可以使用 ceph orch device replace &lt;host&gt; &lt;device&gt; --clear
+[ceph: root@devel-1 /]# ceph orch device replace devel-1 /dev/vdk --clear
+Replacement header cleared on /dev/vdk
+[ceph: root@devel-1 /]#
+之后，cephadm 将在几分钟内重新部署 OSD 服务规范（除非服务设置为 unmanaged）。
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一页 下一页
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

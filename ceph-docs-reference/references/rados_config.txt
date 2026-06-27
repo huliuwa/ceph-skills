@@ -1,0 +1,101 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+配置 — Ceph 文档
+Ceph 存储集群
+配置
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+配置
+存储设备
+配置 Ceph
+通用设置
+网络
+临时目录
+监视器
+身份验证
+OSD
+心跳
+日志 / 调试
+ceph.conf 示例
+集群命名（已弃用）
+网络设置
+Messenger v2 协议
+身份验证设置
+监视器设置
+通过 DNS 查找监视器
+心跳设置
+OSD 设置
+DmClock 设置
+BlueStore 设置
+FileStore 设置
+日志设置
+池、PG 和 CRUSH 设置
+常规设置
+操作
+手册页
+故障排除
+API
+Ceph 文件系统
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+配置
+每个 Ceph 进程、守护程序或实用程序在启动时会从多个来源获取其配置。这些来源包括 (1) 本地配置、(2) 监视器、(3) 命令行和 (4) 环境变量。
+配置选项可以设置为全局的，以便它们适用于 (1) 所有守护程序、(2) 特定类型的所有守护程序或服务，或者 (3) 仅适用于特定的守护程序、进程或客户端。
+配置对象存储对于一般的对象存储配置，请参考以下内容
+存储设备
+配置 Ceph
+参考要优化集群性能，请参考以下内容
+通用设置
+网络
+临时目录
+监视器
+身份验证
+OSD
+心跳
+日志 / 调试
+ceph.conf 示例
+集群命名（已弃用）
+网络设置
+Messenger v2 协议
+身份验证设置
+监视器设置
+通过 DNS 查找监视器
+心跳设置
+OSD 设置
+DmClock 设置
+BlueStore 设置
+FileStore 设置
+日志设置
+池、PG 和 CRUSH 设置
+常规设置
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一页 下一页
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

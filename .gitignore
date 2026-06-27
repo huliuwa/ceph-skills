@@ -1,0 +1,12 @@
+# 忽略通过 npx skills 自动安装的第三方 skill（它们是 symlink）
+find-skills
+frontend-design
+skill-creator
+karpathy-coder
+
+# 忽略系统文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~

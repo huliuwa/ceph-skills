@@ -1,0 +1,123 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+Create a Ceph file system — Ceph Documentation
+Ceph 文件系统
+创建 Ceph 文件系统
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+CephFS 入门
+管理
+创建 CephFS 文件系统
+创建池
+创建文件系统
+将纠删码池用于 CephFS
+管理命令
+创建多个文件系统
+配置/添加/删除 MDS
+术语
+引用 MDS 守护进程
+管理故障转移
+配置备用重放
+配置 MDS 文件系统亲和性
+MDS 缓存配置
+MDS 配置设置
+手册：ceph-mds
+通过 NFS 导出
+应用程序最佳实践
+FS 卷和子卷
+CephFS 配额
+健康信息
+升级 MDS 集群
+将 Firefly 之前的文件系统升级到 Jewel 之后
+CephFS Top 实用程序
+计划快照
+CephFS 快照镜像
+清除队列
+挂载 CephFS
+CephFS 概念
+故障排除和灾难恢复
+开发人员指南
+其他详细信息
+Ceph 块设备
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+创建 Ceph 文件系统
+创建池
+Ceph 文件系统至少需要两个 RADOS 池，一个用于数据，一个用于元数据。在规划这些池时，需要考虑以下重要因素
+我们建议为元数据池配置至少 3 个副本，因为此池中的数据丢失可能会导致整个文件系统无法访问。配置 4 个并不过分，尤其是因为元数据池的容量要求相当适中。
+我们建议为元数据池使用最快的可行低延迟存储设备（NVMe、Optane，或者至少是 SAS/SATA SSD），因为这将直接影响客户端文件系统操作的延迟。
+我们强烈建议在专用的 SSD / NVMe OSD 上配置 CephFS 元数据池。这确保了高客户端工作负载不会对元数据操作产生不利影响。请参阅设备类以这种方式配置池。
+用于创建文件系统的数据池是“默认”数据池，也是存储所有 inode 反向追踪信息的位置，这些信息用于硬链接管理和灾难恢复。因此，所有 CephFS inode 在默认数据池中至少有一个 RADOS 对象。如果计划将纠删码池用于文件系统数据，最好将默认池配置为复制池，以提高更新反向追踪时小对象写入和读取性能。另外，可以添加另一个纠删码数据池（另请参阅纠删码），可用于整个目录和文件层次结构（另请参阅文件布局）。
+出于同样的原因，即使您不使用纠删码并计划将所有或大部分文件存储在 HDD 上，也建议将默认数据池设置为 SSD 池，并将顶层目录的文件布局设置为 HDD 池。这使您可以在将来使用文件布局将小文件和 inode 对象完全移出 HDD，而无需从头重新创建池。当您有许多小文件时，这会减少擦除和恢复时间，因为这些操作会导致每个 RADOS 对象至少进行一次 HDD 查找。当部署带有 HDD 默认数据池的 CephFS 文件系统时，此优化无法在原地进行改造，并且在不创建全新的 CephFS 文件系统并迁移所有文件的情况下，默认数据池无法随后移除。当子目录与 HDD 数据池对齐时，此策略仅需要适度的 SSD 默认数据池容量，但可以加速各种操作并为您的文件系统带来未来的灵活性。
+请参阅池以了解有关管理池的更多信息。例如，要创建两个具有默认设置以用于文件系统的池，您可以运行以下命令
+$ ceph osd pool create cephfs_data
+$ ceph osd pool create cephfs_metadata
+元数据池通常最多只包含几 GB 数据。因此，通常建议使用较小的 PG 计数。在大型集群中，通常使用 64 或 128。
+注意
+文件系统、元数据池和数据池的名称只能包含 [a-zA-Z0-9_-. ] 集合中的字符。
+创建文件系统
+创建池后，您可以使用 fs new 命令启用文件系统
+$ ceph fs new &lt;fs_name&gt; &lt;metadata&gt; &lt;data&gt; [--force] [--allow-dangerous-metadata-overlay] [&lt;fscid:int&gt;] [--recover] [--yes-i-really-really-mean-it] [&lt;set&gt;...]
+此命令使用指定的元数据和数据池创建新的文件系统。指定的数据池是默认数据池，设置后无法更改。每个文件系统都有自己分配给排名的 MDS 守护程序集，因此请确保您有足够的备用守护程序来容纳新的文件系统。
+注意
+某些 fs set 命令可以使用 --yes-i-really-really-mean-it
+使用 --force 选项可实现以下任何目的
+为默认数据池设置纠删码池。不鼓励将 EC 池用于默认数据池。有关详细信息，请参阅创建池。
+为元数据池设置非空池（池已包含一些对象）。
+使用特定的文件系统 ID（fscid）创建文件系统。使用 --fscid 选项需要 --force 选项。
+--allow-dangerous-metadata-overlay 选项允许重用元数据和数据池（如果它已在使用中）。这只应在紧急情况下，并仔细阅读文档后才能进行。
+如果提供了 --fscid 选项，则会使用特定的 fscid 创建文件系统。当应用程序期望文件系统的 ID 在恢复后保持稳定时，例如在监视器数据库丢失并重建后，可以使用此选项。因此，文件系统 ID 不会总是随着更新的文件系统而增加。
+--recover 选项将文件系统排名 0 的状态设置为现有但失败。因此，当 MDS 守护程序最终选择排名 0 时，守护程序会读取现有的 RADOS 内元数据，而不会覆盖它。该标志还阻止备用 MDS 守护程序加入文件系统。
+set 选项允许在创建文件系统时以原子方式设置 fs set 支持的多个选项。
+例如
+$ ceph fs new cephfs cephfs_metadata cephfs_data set max_mds 2 allow_standby_replay true
+$ ceph fs ls
+name: cephfs, metadata pool: cephfs_metadata, data pools: [cephfs_data ]
+创建文件系统后，您的 MDS 将能够进入活动状态。例如，在单个 MDS 系统中
+$ ceph mds stat
+cephfs-1/1/1 up {0=a=up:active}
+创建文件系统且 MDS 处于活动状态后，您就可以挂载文件系统了。如果您创建了多个文件系统，则在挂载时将选择要使用的文件系统。
+使用内核驱动程序挂载 CephFS
+使用 FUSE 挂载 CephFS
+在 Windows 上挂载 CephFS
+如果您创建了多个文件系统，并且客户端在挂载时不指定文件系统，则可以使用 ceph fs set-default 命令控制它们将看到哪个文件系统。
+向文件系统添加数据池
+请参阅向文件系统添加数据池。
+将纠删码池用于 CephFS
+您可以将纠删码池用作 CephFS 数据池，只要它们启用了覆盖，操作如下
+ceph osd pool set my_ec_pool allow_ec_overwrites true
+请注意，仅在使用带有 BlueStore 后端的 OSD 时才支持 EC 覆盖。
+如果您存储大量小文件或频繁修改文件，可以通过启用 EC 优化来提高性能，操作如下
+ceph osd pool set my_ec_pool allow_ec_optimizations true
+您不能将纠删码池用作 CephFS 元数据池，因为 CephFS 元数据是使用 RADOS OMAP 数据结构存储的，而 EC 池无法存储这些结构。
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一个 下一个
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});

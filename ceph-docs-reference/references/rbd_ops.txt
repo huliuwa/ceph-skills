@@ -1,0 +1,65 @@
+(l=location)[p='protocol'][5]||(l[p]='https')window.minimalAnalytics={trackingId:'G-M2CNWZ52HJ',autoTrack:true}
+Ceph 块设备操作 — Ceph 文档
+Ceph 块设备
+Ceph 块设备操作
+查看页面源
+Ceph
+Ceph 简介
+安装 Ceph
+Cephadm
+Ceph 存储集群
+Ceph 文件系统
+Ceph 块设备
+基本命令
+操作
+快照
+排他性锁定
+镜像
+活迁移
+持久性只读缓存
+持久性写入日志缓存
+加密
+配置设置 (librbd)
+RBD 重放
+集成
+手册页
+API
+Ceph 对象网关
+Ceph 管理器守护进程
+Ceph Dashboard
+监控概览
+API 文档
+架构
+开发者指南
+Ceph 内部结构
+治理
+Ceph 基金会
+ceph-volume
+Crimson (技术预览)
+Ceph 版本 (常规)
+Ceph 版本 (索引)
+安全
+硬件监控
+术语表
+追踪
+Ceph
+注意
+本文档适用于 Ceph 的开发版本。
+报告文档错误
+Ceph 块设备操作
+快照
+排他性锁定
+镜像
+活迁移
+持久性只读缓存
+持久性写入日志缓存
+加密
+配置设置 (librbd)
+RBD 重放
+由 Ceph 基金会为您呈现
+Ceph 文档是由非营利性 Ceph 基金会 资助和托管的社区资源。如果您希望支持这项工作和我们的其他努力，请考虑 立即加入。
+上一页 下一页
+© 版权所有 2016，Ceph 作者和贡献者。根据知识共享署名-相同方式共享 3.0 (CC-BY-SA-3.0) 授权。
+jQuery(function () {
+SphinxRtdTheme.Navigation.enable(true);
+});
