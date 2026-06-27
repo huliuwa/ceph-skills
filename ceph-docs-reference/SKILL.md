@@ -17,30 +17,29 @@ description: Use when answering Ceph-related questions, planning Ceph deployment
 - 不要偏离轨道去解决文档范围之外的问题
 - 回答末尾必须标注信息来源（章节名 + URL）
 
-## 用户实验环境
+## 用户实验环境（参考示例）
+
+以下是一个典型的 Ceph 实验环境示例，用于辅助理解。回答时应提示用户根据自己实际的节点 IP、OSD 分布等信息调整配置：
 
 ```
 宿主机: Windows + VMware Workstation
-集群:   3节点 OpenCloudOS 8.10
-        Ceph Pacific 16.2.15 (手动部署, 非cephadm)
-        OVS 3.3.9 (源码编译, 双桥: br0管理+存储, ovs-vm虚拟机网络)
-        KVM: node129 上运行 VM linux2024 (192.168.48.149, RBD启动盘)
-        日志: CephFS 三节点直写 /mnt/kvm_logs/
+集群:   3节点 Linux 发行版 (如 CentOS/OpenCloudOS/Ubuntu)
+        Ceph Pacific/Quincy/Reef (手动部署或 cephadm)
+        网络: 管理网 + 存储私有网段
+        KVM: 某节点运行的虚拟机 (RBD 启动盘)
 
-节点详情:
+节点示例:
 ┌─────────┬────────────────┬───────────────┬──────────────────────────────┐
 │  节点   │       IP       │   存储私网    │            角色              │
 ├─────────┼────────────────┼───────────────┼──────────────────────────────┤
-│ node129 │ 192.168.48.129 │ 192.168.12.15 │ mon, mgr, osd.0/1, KVM 宿主机│
-│ node144 │ 192.168.48.144 │ 192.168.12.16 │ mon, osd.2/3                 │
-│ node145 │ 192.168.48.145 │ 192.168.12.17 │ mon, osd.4/5                 │
+│  node1  │ 192.168.x.1    │ 10.0.0.1      │ mon, mgr, osd.0, KVM 宿主机   │
+│  node2  │ 192.168.x.2    │ 10.0.0.2      │ mon, osd.1                   │
+│  node3  │ 192.168.x.3    │ 10.0.0.3      │ mon, osd.2                   │
 └─────────┴────────────────┴───────────────┴──────────────────────────────┘
 
-存储: 6 OSD，每节点 2×25G HDD + 1×10G NVMe WAL/DB
-版本: Ceph Pacific 16.2.15
+存储: 3+ OSD，每节点多块 HDD + 可选的 NVMe WAL/DB
+版本: 用户指定的 Ceph 版本
 ```
-
-**在回答用户问题时，结合此环境给出针对性建议。但所有建议必须源自官方文档。**
 
 ## 文档结构速查
 
@@ -172,17 +171,6 @@ PG 状态:    ceph pg stat
 监控器状态: ceph mon stat
 Mgr 状态:   ceph mgr stat
 ```
-
-## 已知的用户实验记录
-
-用户已有以下实验记录（Xshell 终端实录格式），回答时可参考：
-- Ceph Pacific 16.2.15 手动部署全流程
-- OVS 3.3.9 源码编译部署
-- mgr 迁移实验
-- OSD 故障恢复实验
-- 防火墙策略与 SELinux 配置
-- RBD → CephFS 日志架构演进
-- KVM 虚拟机 RBD 启动盘配置
 
 ## 错误处理
 
