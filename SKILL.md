@@ -1,10 +1,10 @@
 ---
 name: ceph-docs-reference
 description: >
-  Ceph 实操参考技能 — 基于 OpenCloudOS 8.10 + Ceph Pacific 16.2.15 手动部署的完整经验库。
+  Ceph 实操参考技能 — 基于真实实验环境的完整经验库。
   回答 Ceph 问题、规划部署、排查故障、进行实验、编写配置时使用。
   官方文档来源: https://docs.ceph.net.cn/en/latest/
-  触发词: Ceph, OpenCloudOS, 手动部署, ceph-volume, OSD, PG, pool, RBD, CephFS, MDS,
+  触发词: Ceph, 手动部署, ceph-volume, OSD, PG, pool, RBD, CephFS, MDS,
   CRUSH, SELinux, firewall, OVS, KVM, libvirt, rsyslog, 灾备恢复, 已知坑,
   HEALTH_WARN, clock skew, mon probing, OSD down, PG unknown
 ---
@@ -20,30 +20,55 @@ description: >
 3. **不编造**：不允许编造、猜测或引用文档/实验中不存在的内容。
 4. **标注来源**：回答末尾标注信息来源。实操经验标注 `[已验证-实验N]`，官方内容标注 `[官方文档 - 章节名](URL)`。
 5. **环境感知**：回答时先确认用户系统（OpenCloudOS/RHEL/Ubuntu）和 Ceph 版本（Pacific/Quincy/Reef），不同环境下命令和行为可能不同。
+6. **参数变量化**：回答中涉及用户环境时，IP、节点名、路径、版本号等必须用变量/占位符表示，提示用户替换（见下方原则）。
 
 ---
 
-## 用户实验环境（实际验证环境）
+## 参数变量化原则
+
+回答中涉及用户环境时，必须遵循：
+
+| 参数类型 | ❌ 错误示例 (硬编码) | ✅ 正确示例 (变量化) |
+|---------|-------------------|-------------------|
+| IP 地址 | `192.168.48.129` | `<管理IP>` 或 `{mon_ip}` |
+| 节点名 | `node129` | `<节点名>` 或 `{node1}` |
+| 路径 | `/mnt/kvm_logs/` | `<日志目录>` 或 `{log_path}` |
+| 版本号 | `16.2.15` | `<Ceph 版本>` 或 `{ceph_version}` |
+| OSD 数量 | `6 OSD` | `<OSD 总数>` 或 `{osd_count}` |
+| 网段 | `192.168.48.0/24` | `<管理网络 CIDR>` 或 `{public_network}` |
+| FSID | `a8aa9e2a-...` | `<集群 FSID>` 或 `{fsid}` |
+
+**格式约定：**
+- 首次出现用中文描述：`<管理IP>`
+- 同一参数再次出现时可用变量名：`{mon_ip}`
+- 在回答末尾汇总所有变量，方便用户对照替换
+
+---
+
+## 用户实验环境（参考示例）
+
+> 本 skill 基于以下环境验证。**所有 IP、节点名、FSID 均为实际值展示，你在使用时必须替换为自己的参数。**
 
 ```
-宿主机: Windows 11 + VMware Workstation
-OS:     OpenCloudOS 8.10 (kernel 5.4.119-20.0009.34)
-Ceph:   Pacific 16.2.15 (手动部署，非 cephadm)
-OVS:    3.3.9 LTS (源码编译)
+宿主机: Windows/Linux + VMware/VirtualBox/Proxmox
+OS:     Linux 发行版 (如 OpenCloudOS/RHEL/Rocky/Ubuntu, 内核 5.4+)
+Ceph:   Pacific 16.2.x / Quincy / Reef / Squid (手动部署)
+OVS:    3.x LTS (源码编译)
 
-集群:   3 节点，双网段（管理网 + 存储私网）
-┌──────────┬──────────────────┬─────────────────┬────────────────────────────────┐
-│  节点    │  管理 IP         │  存储私网 IP    │  角色                          │
-├──────────┼──────────────────┼─────────────────┼────────────────────────────────┤
-│ node129  │ 192.168.48.129   │ 192.168.12.15   │ mon, mgr, osd.0/1, KVM host   │
-│ node144  │ 192.168.48.144   │ 192.168.12.16   │ mon, osd.2/3                   │
-│ node145  │ 192.168.48.145   │ 192.168.12.17   │ mon, osd.4/5                   │
-└──────────┴──────────────────┴─────────────────┴────────────────────────────────┘
+集群: N 节点，M 个网段（管理网 + 存储私有网）
+┌─────────┬────────────────┬─────────────────┬──────────────────────────────────┐
+│  节点   │  管理 IP       │  存储私网 IP    │  角色                            │
+├─────────┼────────────────┼─────────────────┼──────────────────────────────────┤
+│ node1   │ <管理网段.1>   │ <存储网段.1>    │ mon, mgr, osd.0/1, (可选 KVM)    │
+│ node2   │ <管理网段.2>   │ <存储网段.2>    │ mon, osd.2/3                     │
+│ node3   │ <管理网段.3>   │ <存储网段.3>    │ mon, osd.4/5                     │
+│ ...     │ ...            │ ...             │ 更多节点...                      │
+└─────────┴────────────────┴─────────────────┴──────────────────────────────────┘
 
-磁盘: 每节点 2x25G HDD (sda/sdb, OSD 数据盘) + 1x10G NVMe (nvme0n2, BlueStore WAL/DB)
-网络: br0 (Linux bridge, 管理+存储) + ovs-vm (OVS bridge, VM 二层转发)
-池:   ds_ceph_vm(32 PG) + pool_mgr2_vm(32 PG) + kvm_log_data(128 PG) + kvm_log_metadata(32 PG)
-CephFS: cephfs_kvm_log (挂载于 /mnt/kvm_logs)
+磁盘: 每节点 N 块数据盘 (HDD/SSD) + 可选 NVMe 做 BlueStore WAL/DB
+网络: 管理桥 + 存储/VM 桥 (Linux bridge / OVS)
+池:   根据用途规划 PG 数量 (建议 (OSD总数 × 100) / 副本数)
+CephFS: 可选用于日志/共享存储
 ```
 
 ---
@@ -201,8 +226,8 @@ ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n 
 ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
 ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring
 chown ceph:ceph /tmp/ceph.mon.keyring
-monmaptool --create --add node129 192.168.48.129 --add node144 192.168.48.144 \
-  --add node145 192.168.48.145 --fsid <FSID> /tmp/monmap
+monmaptool --create --add <node1_hostname> <管理IP1> --add <node2_hostname> <管理IP2> \
+  --add <node3_hostname> <管理IP3> --fsid <FSID> /tmp/monmap
 sudo -u ceph ceph-mon --mkfs -i node129 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
 systemctl enable --now ceph-mon@node129
 
@@ -355,17 +380,17 @@ semodule -l | grep rsyslog                    # 查看 rsyslog 相关策略
 | 6789 | Monitor v1 (legacy) | TCP |
 | 6800-7568 | OSD/MSGR 数据面 | TCP |
 
-### ipset 配置（已验证）
+### ipset 配置（示例）
 
 ```bash
 # 创建 IP 集合（包含所有节点的管理 IP + 存储私网 IP）
 firewall-cmd --permanent --new-ipset=ceph_pool --type=hash:ip
-firewall-cmd --permanent --ipset=ceph_pool --add-entry=192.168.48.129
-firewall-cmd --permanent --ipset=ceph_pool --add-entry=192.168.48.144
-firewall-cmd --permanent --ipset=ceph_pool --add-entry=192.168.48.145
-firewall-cmd --permanent --ipset=ceph_pool --add-entry=192.168.12.15
-firewall-cmd --permanent --ipset=ceph_pool --add-entry=192.168.12.16
-firewall-cmd --permanent --ipset=ceph_pool --add-entry=192.168.12.17
+firewall-cmd --permanent --ipset=ceph_pool --add-entry=<管理IP1>
+firewall-cmd --permanent --ipset=ceph_pool --add-entry=<管理IP2>
+firewall-cmd --permanent --ipset=ceph_pool --add-entry=<管理IP3>
+firewall-cmd --permanent --ipset=ceph_pool --add-entry=<存储IP1>
+firewall-cmd --permanent --ipset=ceph_pool --add-entry=<存储IP2>
+firewall-cmd --permanent --ipset=ceph_pool --add-entry=<存储IP3>
 
 # 放行 Ceph 端口
 firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source ipset="ceph_pool" port port="3300" protocol="tcp" accept'
@@ -384,10 +409,10 @@ firewall-cmd --reload
 
 ```ini
 [global]
-fsid = a8aa9e2a-42c5-497d-b80e-c58cc7b3a86b
-mon_initial_members = node129, node144, node145
-mon_host = 192.168.48.129, 192.168.48.144, 192.168.48.145
-public_network = 192.168.48.0/24
+fsid = <你的集群FSID>
+mon_initial_members = <node1>, <node2>, <node3>
+mon_host = <管理IP1>, <管理IP2>, <管理IP3>
+public_network = <管理网段CIDR>
 auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
@@ -398,7 +423,7 @@ osd_pool_default_min_size = 2
 ### CephFS 挂载（/etc/fstab）
 
 ```
-192.168.48.129:6789,192.168.48.144:6789,192.168.48.145:6789:/ /mnt/kvm_logs ceph name=admin,secretfile=/etc/ceph/admin.secret,noatime,_netdev,x-systemd.requires=network-online.target 0 0
+<管理IP1>:6789,<管理IP2>:6789,<管理IP3>:6789:/ <CephFS挂载点> ceph name=<用户名>,secretfile=<密钥文件路径>,noatime,_netdev,x-systemd.requires=network-online.target 0 0
 ```
 
 **关键**: 必须包含 `x-systemd.requires=network-online.target`，否则宿主机重启后挂载可能失败。
@@ -407,7 +432,7 @@ osd_pool_default_min_size = 2
 
 ```conf
 template(name="CephFSLog" type="string"
-  string="/mnt/kvm_logs/logs/192.168.48.129/%$YEAR%-%$MONTH%-%$DAY%/%syslogseverity-text%.log")
+  string="<CephFS挂载点>/logs/<本机管理IP>/%$YEAR%-%$MONTH%-%$DAY%/%syslogseverity-text%.log")
 
 *.* action(
     type="omfile"
@@ -422,7 +447,7 @@ template(name="CephFSLog" type="string"
 )
 ```
 
-**已知坑**: rsyslog 模板中使用 `%fromhost-ip%` 对 imfile 本地消息为空，必须硬编码 IP。
+**已知坑**: rsyslog 模板中使用 `%fromhost-ip%` 对 imfile 本地消息为空，建议用固定标识 `<本机标识>` 替代。
 
 ### OVS systemd 服务（Type=oneshot + wrapper）
 
@@ -454,12 +479,12 @@ exec /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random 2>&1
 
 ```xml
 <pool type='rbd'>
-  <name>Ceph-ds_ceph_vm</name>
+  <name><libvirt池名称></name>
   <source>
-    <name>ds_ceph_vm</name>
-    <host name='192.168.48.129' port='6789'/>
-    <auth type='ceph' username='libvirt'>
-      <secret uuid='e9b2d43e-b60a-4d3b-a880-a3d69df156a5'/>
+    <name><RBD池名称></name>
+    <host name='<MON节点管理IP>' port='6789'/>
+    <auth type='ceph' username='<ceph用户名>'>
+      <secret uuid='<UUID>'/>
     </auth>
   </source>
 </pool>
@@ -500,7 +525,7 @@ exec /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random 2>&1
 | 查看 PG 详细 | `ceph pg <pgid>` |
 | 查看池的 PG 分布 | `ceph pg ls-by-pool <pool_name>` |
 | 调整 PG 数 | `ceph osd pool set <pool> pg_num <N>` (只能增不能减) |
-| PG 计算公式 | `(OSD_count * 100) / replica_count` → 取最近的 2 的幂 |
+| PG 数量设置 | **官方推荐**: 启用 `pg_autoscale_mode on` 自动调节；**手动计算**: `(OSD_count * 100) / replica_count` 取最近的 2 的幂（社区惯例，仅作参考） |
 
 ### RBD 操作
 
@@ -577,18 +602,20 @@ virsh start <vm_name>
 
 ### Dashboard 启用
 
+官方推荐每个 mgr 实例绑定自身 IP：
+
 ```bash
 ceph mgr module enable dashboard
 ceph dashboard create-self-signed-cert
-ceph config set mgr mgr/dashboard/server_addr 0.0.0.0  # 关键：必须设为 0.0.0.0
-ceph config set mgr mgr/dashboard/server_port 8443
+ceph config set mgr mgr/dashboard/<mgr_id>/server_addr <本机管理IP>
+ceph config set mgr mgr/dashboard/<mgr_id>/server_port 8443
 ceph dashboard ac-user-create admin -i <(echo "admin123")
 ceph dashboard ac-user-set-roles admin administrator
 ```
 
 访问: `https://<mgr_node_ip>:8443/`
 
-**已知坑**: `server_addr` 必须在 mgr 启动前设为 `0.0.0.0`。如果缓存了特定 IP（如 node129 的 IP），mgr 在其他节点启动时 Dashboard 模块会崩溃。
+> **实验可选**: 如果 mgr 可能在节点间迁移，可将 `server_addr` 设为 `0.0.0.0` 避免 IP 缓存问题。但此方式非官方标准，可能带来安全风险。详见 [已验证-实验12]。
 
 ### MGR 在 KVM VM 中的稳定性问题
 
