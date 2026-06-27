@@ -152,9 +152,20 @@ HDD (数据盘)          NVMe (高速盘)
 │  (100-400KB) │      │  (WAL 日志)  │ ← 写前日志
 └──────────────┘      └──────────────┘
      sda/sdb              nvme0n2
-  ceph-volume lvm batch /dev/sda /dev/sdb --db-devices /dev/nvme0n2
 ```
-每块 NVMe 10G 可承载 2 个 OSD 的 WAL/DB（每 OSD 约 5G）。
+
+**DB 设备空间建议 [官方]:** 当将 WAL+DB 卸载到高速设备时，官方推荐 `block.db` 大小 **至少为块设备（HDD）容量的 2.5%**。具体负载类型有所差异：
+- **RGW 负载**: 建议至少 4%（大量 omap 元数据）
+- **RBD 负载**: 通常 1%–2% 即够
+- 示例：1TB HDD → block.db ≥ 25GB（通用）/ ≥ 10GB（纯 RBD）/ ≥ 40GB（RGW）
+
+**RocksDB 层级尺寸 [官方]:** 官方说明内部层级对应约 3GB、30GB、300GB 的 DB 尺寸可完全利用。Pacific 版本开始支持实验性动态层级（dynamic level），可更好地利用任意大小的 DB 设备。
+> **实验参考 [已验证]:** 本实验环境每节点 2 块 25G HDD + 10G NVMe，以每 OSD 约 5G DB 空间运行。此配置适用于小规模验证环境，**生产环境请按百分比计算**。
+
+常用部署命令：
+```bash
+ceph-volume lvm batch /dev/sda /dev/sdb --db-devices /dev/nvme0n2
+```
 
 ---
 
@@ -216,40 +227,55 @@ Phase H: CephFS 日志架构（可选）
 ```bash
 # === 安装前提 ===
 dnf install epel-release -y                          # 必须先装 EPEL
+# Ceph Pacific 仓库配置（OpenCloudOS 8.10 示例，其他发行版请替换）
+# dnf install -y centos-release-ceph-pacific
 dnf install ceph-mon ceph-mgr ceph-osd lvm2 -y       # 主节点（含 dashboard）
 dnf install ceph-mon ceph-osd lvm2 -y                 # 从节点
 
 # === Monitor 初始化（主节点） ===
+# 创建 bootstrap-osd keyring（必须先于 monmaptool 导入）
+ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring --gen-key \
+  -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap osd 'allow *'
 ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
 ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin \
   --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *'
 ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
 ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring
-chown ceph:ceph /tmp/ceph.mon.keyring
-monmaptool --create --add <node1_hostname> <管理IP1> --add <node2_hostname> <管理IP2> \
-  --add <node3_hostname> <管理IP3> --fsid <FSID> /tmp/monmap
-sudo -u ceph ceph-mon --mkfs -i node129 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
-systemctl enable --now ceph-mon@node129
+chown ceph:ceph /tmp/ceph.mon.keyring /tmp/monmap
+monmaptool --create --add <节点名1> <管理IP1> --add <节点名2> <管理IP2> \
+  --add <节点名3> <管理IP3> --fsid <FSID> /tmp/monmap
+sudo -u ceph ceph-mon --mkfs -i <主节点主机名> --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+systemctl enable --now ceph-mon@<主节点主机名>
+
+# === ceph-mgr 启动 ===
+ceph auth get-or-create client.mgr.<主节点主机名> mon 'allow *' osd 'allow *' mds 'allow *'
+sudo -u ceph mkdir -p /var/lib/ceph/mgr/ceph-<主节点主机名>
+ceph auth get-or-create client.mgr.<主节点主机名> | \
+  sudo -u ceph tee /var/lib/ceph/mgr/ceph-<主节点主机名>/keyring
+systemctl enable --now ceph-mgr@<主节点主机名>
 
 # === OSD 创建 ===
 ln -sf /var/lib/ceph/bootstrap-osd/ceph.keyring /etc/ceph/ceph.client.bootstrap-osd.keyring
-ceph-volume lvm batch /dev/sda /dev/sdb --db-devices /dev/nvme0n2 --yes
+ceph-volume lvm batch <数据盘1> <数据盘2> --db-devices <NVMe盘> --bluestore --yes
 
-# === 存储池 ===
-ceph osd pool create ds_ceph_vm 32
+# === 存储池（实验示例，请根据实际调整 PG 数）===
+# 实验环境 6 OSD × 3 副本，使用 32 PG 精简配置（每 OSD ~5 PG）
+# 生产环境推荐启用 pg_autoscale_mode on，或按公式计算 PG 数
+ceph osd pool create ds_ceph_vm 32 --autoscale-mode on
 ceph osd pool application enable ds_ceph_vm rbd
 rbd pool init ds_ceph_vm
 
-# === CephFS ===
-ceph osd pool create kvm_log_data 32
-ceph osd pool create kvm_log_metadata 32
+# === CephFS（实验示例）===
+ceph osd pool create kvm_log_data 32 --autoscale-mode on
+ceph osd pool create kvm_log_metadata 32 --autoscale-mode on
 ceph osd pool application enable kvm_log_data cephfs
 ceph osd pool application enable kvm_log_metadata cephfs
 ceph fs new cephfs_kvm_log kvm_log_metadata kvm_log_data
 dnf install -y ceph-mds
-ceph auth get-or-create mds.node129 mon 'profile mds' mgr 'profile mds' osd 'allow *' mds 'allow *' \
-  -o /var/lib/ceph/mds/ceph-node129/keyring
-systemctl enable --now ceph-mds@node129
+sudo -u ceph mkdir -p /var/lib/ceph/mds/ceph-<主节点主机名>
+ceph auth get-or-create mds.<主节点主机名> mon 'profile mds' mgr 'profile mds' osd 'allow *' mds 'allow *' \
+  -o /var/lib/ceph/mds/ceph-<主节点主机名>/keyring
+systemctl enable --now ceph-mds@<主节点主机名>
 
 # === 状态检查 ===
 ceph -s                          # 总览
@@ -339,11 +365,11 @@ dnf install -y policycoreutils-python-utils
 # 2. 分析 AVC 拦截日志，自动生成策略模块
 #    注意：grep 模式要精确匹配 domain_t → target_t
 grep 'syslogd_t.*cephfs_t' /var/log/audit/audit.log | audit2allow -M /tmp/rsyslogallow
-#    -M 参数只接受简短字母名称（如 rsyslogallow），不能含路径
+#    -M 参数可含路径前缀（模块名取自 basename），输出 .te/.pp 到指定目录
 
 # 3. 加载策略
 semodule -i /tmp/rsyslogallow.pp
-#    注意：semodule -i 触发 SELinux 策略全量重建，耗时 30-60 秒
+#    注意：semodule -i 触发 SELinux 策略全量重建，耗时数秒至数十秒（视策略大小和硬件而定）
 ```
 
 ### 常见拦截场景
@@ -368,19 +394,37 @@ semodule -l | grep rsyslog                    # 查看 rsyslog 相关策略
 
 ---
 
-## 防火墙配置（ipset 精确放通）
+## 防火墙配置
 
-> 官方文档参考: https://docs.ceph.net.cn/en/latest/rados/configuration/network-config-ref/
+> 来源: [Ceph 官方文档 - 网络配置参考](https://docs.ceph.net.cn/en/latest/rados/configuration/network-config-ref/)
 
 ### 端口清单
 
 | 端口 | 用途 | 协议 |
 |------|------|------|
-| 3300 | Monitor v2 (msgr2 gRPC) | TCP |
-| 6789 | Monitor v1 (legacy) | TCP |
-| 6800-7568 | OSD/MSGR 数据面 | TCP |
+| 3300 | Monitor v2 (msgr2 默认) | TCP |
+| 6789 | Monitor v1 (兼容) | TCP |
+| 6800-7568 | OSD/MGR/MDS 数据面（默认范围）| TCP |
 
-### ipset 配置（示例）
+> OSD 绑定端口行为是非确定性的：重启后可能绑定到不同端口。因此必须打开整个 `6800-7568` 范围。
+
+### 方案一（官方推荐）：iptables + 子网源过滤
+
+Ceph 官方文档使用 iptables 配合 CIDR 子网作为源地址过滤。适用于 CentOS/RHEL/OpenCloudOS 等所有发行版。
+
+```bash
+# Monitor — 放行 6789 和 3300
+sudo iptables -A INPUT -i <公网接口> -p tcp -s <管理子网/CIDR> --dport 6789 -j ACCEPT
+# OSD/MGR/MDS — 放行完整端口范围
+sudo iptables -A INPUT -i <公网接口> -m multiport -p tcp -s <管理子网/CIDR> --dports 6800:7568 -j ACCEPT
+
+# 如有独立集群网络（复制流量），为集群接口添加相同规则
+sudo iptables -A INPUT -i <集群接口> -m multiport -p tcp -s <存储子网/CIDR> --dports 6800:7568 -j ACCEPT
+```
+
+### 方案二（实验可选）：firewall-cmd + ipset
+
+适用于使用 firewalld 的发行版（如 OpenCloudOS 8.10/CentOS 8）。ipset 方式可以精确控制每个节点 IP 而非整个子网。
 
 ```bash
 # 创建 IP 集合（包含所有节点的管理 IP + 存储私网 IP）
@@ -399,7 +443,7 @@ firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source ipset="ceph_
 firewall-cmd --reload
 ```
 
-**已知坑**: NetworkManager 重启后防火墙规则丢失，必须重新 apply 全部规则。
+**已知坑 [已验证]**: NetworkManager 重启后 iptables/firewall-cmd 规则可能丢失，必须重新 apply。
 
 ---
 
@@ -413,11 +457,14 @@ fsid = <你的集群FSID>
 mon_initial_members = <node1>, <node2>, <node3>
 mon_host = <管理IP1>, <管理IP2>, <管理IP3>
 public_network = <管理网段CIDR>
+# cluster_network = <存储网段CIDR>    # 可选：独立集群网络用于复制流量
 auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
-osd_pool_default_size = 3
-osd_pool_default_min_size = 2
+osd_pool_default_size = <副本数>
+osd_pool_default_min_size = <最小副本数>
+# size=<副本数>（含 primary），min_size=<最小副本数>（允许故障时仍可 I/O）
+# 例如: size=3, min_size=2 允许 1 OSD 故障
 ```
 
 ### CephFS 挂载（/etc/fstab）
@@ -432,7 +479,7 @@ osd_pool_default_min_size = 2
 
 ```conf
 template(name="CephFSLog" type="string"
-  string="<CephFS挂载点>/logs/<本机管理IP>/%$YEAR%-%$MONTH%-%$DAY%/%syslogseverity-text%.log")
+  string="<CephFS挂载点>/logs/<本机管理IP>/%$year%-%$month%-%$day%/%syslogseverity-text%.log")
 
 *.* action(
     type="omfile"
@@ -525,7 +572,7 @@ exec /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random 2>&1
 | 查看 PG 详细 | `ceph pg <pgid>` |
 | 查看池的 PG 分布 | `ceph pg ls-by-pool <pool_name>` |
 | 调整 PG 数 | `ceph osd pool set <pool> pg_num <N>` (只能增不能减) |
-| PG 数量设置 | **官方推荐**: 启用 `pg_autoscale_mode on` 自动调节；**手动计算**: `(OSD_count * 100) / replica_count` 取最近的 2 的幂（社区惯例，仅作参考） |
+| PG 数量设置 | **官方推荐**: 启用 `pg_autoscale_mode on` 自动调节；**手动计算（官方参考）**: `(OSD_count × 100) / pool_size`（pool_size = 含 primary 的总副本数），每 OSD 约 50-100 个 PG，最终取最近的 2 的幂 |
 
 ### RBD 操作
 
@@ -552,9 +599,9 @@ dnf install epel-release -y
 dnf install ceph-mon ceph-osd lvm2 -y
 
 # 4. 复制集群配置（从其他节点 SCP）
-scp node129:/etc/ceph/ceph.conf /etc/ceph/
-scp node129:/etc/ceph/ceph.client.admin.keyring /etc/ceph/
-scp node129:/var/lib/ceph/bootstrap-osd/ceph.keyring /var/lib/ceph/bootstrap-osd/
+scp <其他节点>:/etc/ceph/ceph.conf /etc/ceph/
+scp <其他节点>:/etc/ceph/ceph.client.admin.keyring /etc/ceph/
+scp <其他节点>:/var/lib/ceph/bootstrap-osd/ceph.keyring /var/lib/ceph/bootstrap-osd/
 
 # 5. 激活 OSD（自动读取 OSD 数据盘上的 LVM 元数据）
 ceph-volume lvm activate --all
@@ -602,15 +649,15 @@ virsh start <vm_name>
 
 ### Dashboard 启用
 
-官方推荐每个 mgr 实例绑定自身 IP：
+官方文档建议每个 mgr 实例单独配置自身 IP（默认绑定 `::`，即所有地址）：
 
 ```bash
 ceph mgr module enable dashboard
 ceph dashboard create-self-signed-cert
 ceph config set mgr mgr/dashboard/<mgr_id>/server_addr <本机管理IP>
-ceph config set mgr mgr/dashboard/<mgr_id>/server_port 8443
-ceph dashboard ac-user-create admin -i <(echo "admin123")
-ceph dashboard ac-user-set-roles admin administrator
+# 注意：SSL 启用时端口由 ssl_server_port 控制，非 SSL 时由 server_port 控制
+ceph config set mgr mgr/dashboard/<mgr_id>/ssl_server_port 8443
+ceph dashboard ac-user-create admin -i <(echo "admin123") administrator
 ```
 
 访问: `https://<mgr_node_ip>:8443/`
@@ -678,19 +725,22 @@ ceph dashboard ac-user-set-roles admin administrator
 
 | 文件 | 内容 | 大小 |
 |------|------|------|
-| `architecture.txt` | Ceph 架构 — RADOS、CRUSH、核心组件 | 41KB |
-| `install_manual.txt` | 手动安装步骤 | 2.6KB |
-| `cephadm_install.txt` | Cephadm 安装指南 | 18KB |
-| `cephadm_ops.txt` | Cephadm 运维操作 | 26KB |
-| `cephadm_trouble.txt` | Cephadm 故障排查 | 16KB |
-| `rados_config.txt` | RADOS 配置参考 | 2.3KB |
-| `rados_ops.txt` | RADOS 运维操作概览 | 3KB |
-| `rados_trouble.txt` | RADOS 故障排查 | 1.5KB |
-| `rbd_cmds.txt` | RBD 命令参考 | 7.8KB |
-| `rbd_ops.txt` | RBD 运维操作 | 1.4KB |
-| `cephfs_create.txt` | CephFS 创建指南 | 7.7KB |
-| `cephfs_admin.txt` | CephFS 管理维护 | 14KB |
-| `cephfs_mds.txt` | MDS 添加/删除 | 6.3KB |
-| `rgw_admin.txt` | RADOSGW 管理操作 | 29KB |
-| `security.txt` | 安全配置 | 1.6KB |
-| `glossary.txt` | 术语表 | 13KB |
+| `architecture.txt` | Ceph 架构 — RADOS、CRUSH、核心组件 [官方] | 44KB |
+| `install_manual.txt` | 手动安装步骤 [官方] | 4KB |
+| `cephadm_install.txt` | Cephadm 安装指南 [官方] | 20KB |
+| `cephadm_ops.txt` | Cephadm 运维操作 [官方] | 28KB |
+| `cephadm_trouble.txt` | Cephadm 故障排查 [官方] | 16KB |
+| `rados_config.txt` | RADOS 配置参考 [官方] | 4KB |
+| `rados_ops.txt` | RADOS 运维操作概览 [官方] | 4KB |
+| `rados_trouble.txt` | RADOS 故障排查 [官方] | 4KB |
+| `rbd_cmds.txt` | RBD 命令参考 [官方] | 8KB |
+| `rbd_ops.txt` | RBD 运维操作 [官方] | 4KB |
+| `cephfs_create.txt` | CephFS 创建指南 [官方] | 8KB |
+| `cephfs_admin.txt` | CephFS 管理维护 [官方] | 16KB |
+| `cephfs_mds.txt` | MDS 添加/删除 [官方] | 8KB |
+| `rgw_admin.txt` | RADOSGW 管理操作 [官方] | 32KB |
+| `security.txt` | 安全配置 [官方] | 4KB |
+| `glossary.txt` | 术语表 [官方] | 16KB |
+| `known_pitfalls.txt` | 已知坑数据库（实操经验）| 8KB |
+| `opencloudos_tips.txt` | OpenCloudOS 8.10 适配指南（实操经验）| 4KB |
+| `disaster_recovery.txt` | 灾备恢复指南（实操经验）| 8KB |
