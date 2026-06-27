@@ -1,0 +1,144 @@
+灾备恢复指南（OpenCloudOS 8.10 + Ceph Pacific 16.2.15）
+========================================================
+
+来源：实验3b/5（故障恢复）、实验13（VM 根因分析）、CLAUDE.md
+
+
+1. 场景一：系统盘故障，OSD 数据盘完好
+---------------------------------------
+
+这是最常见的场景。OSD 数据盘（sda/sdb）和 NVMe（nvme0n2）上的 LVM 元数据完好，
+只需重装系统后激活 OSD。
+
+步骤：
+  1. 重装 OpenCloudOS 8.10，保持相同主机名和 IP
+  2. 配置网络（br0 + ovs-vm，参考 Phase B）
+  3. 安装依赖：
+     dnf install epel-release -y
+     dnf install ceph-mon ceph-osd lvm2 -y
+  4. 配置 Ceph repo（如需要）：
+     参考 Phase A-5
+  5. 从其他节点复制集群配置：
+     scp node129:/etc/ceph/ceph.conf /etc/ceph/
+     scp node129:/etc/ceph/ceph.client.admin.keyring /etc/ceph/
+     scp node129:/var/lib/ceph/bootstrap-osd/ceph.keyring /var/lib/ceph/bootstrap-osd/
+  6. 创建 bootstrap keyring 软链接：
+     ln -sf /var/lib/ceph/bootstrap-osd/ceph.keyring /etc/ceph/ceph.client.bootstrap-osd.keyring
+  7. 激活 OSD（自动读取 OSD 数据盘上的 LVM 元数据）：
+     ceph-volume lvm activate --all
+  8. 验证：
+     ceph -s
+     ceph osd tree
+
+关键：ceph-volume lvm activate --all 会扫描所有 OSD 数据盘上的 LVM 元数据，
+自动创建 systemd 服务并启动 OSD。无需手动创建 OSD。
+
+
+2. 场景二：系统盘 + NVMe 故障
+-------------------------------
+
+NVMe 故障更严重，因为 WAL/DB 数据丢失。
+
+选项 A：更换 NVMe 后重建
+  1. 更换 NVMe 硬盘
+  2. 使用 ceph-bluestore-tool 重建 OSD 元数据：
+     ceph-bluestore-tool prime-osd-dir --dev /dev/sda --path /var/lib/ceph/osd/ceph-N
+  3. 或使用 ceph-volume lvm prepare 重新创建
+
+选项 B：让集群自动恢复
+  1. 在故障节点上 purge 旧 OSD：
+     ceph osd purge <id> --yes-i-really-mean-it
+  2. 在新 NVMe 上重新创建 OSD：
+     ceph-volume lvm batch /dev/sda /dev/sdb --db-devices /dev/new_nvme --yes
+
+前提：集群有足够的健康 OSD 和 PG 副本来维持 min_size。
+
+
+3. 场景三：VM 在节点间迁移（Ceph RBD）
+-----------------------------------------
+
+RBD 镜像在 Ceph 集群中（不在本地磁盘），迁移只需拷贝 VM 配置。
+
+步骤：
+  1. 关闭 VM：
+     virsh shutdown <vm_name>
+  2. 导出 VM XML：
+     virsh dumpxml <vm_name> > /tmp/<vm_name>.xml
+  3. 在目标节点定义 VM：
+     virsh define /tmp/<vm_name>.xml
+  4. 启动：
+     virsh start <vm_name>
+
+注意：
+- 不需要拷贝磁盘文件（RBD 镜像在 Ceph 中）
+- 目标节点必须有 ceph-common + qemu-kvm-block-rbd
+- 目标节点必须有 Ceph 配置文件和 keyring
+- 如果 VM 使用 OVS 网络，目标节点必须有相同的 ovs-net 虚拟网络
+
+
+4. 场景四：VM 快照恢复
+-------------------------
+
+libvirt 不支持 RBD 网络磁盘的内部快照（internal snapshot）。
+
+使用 RBD 原生快照：
+  # 创建快照
+  rbd snap create ds_ceph_vm/mgr2/vm-system@initial-clean
+
+  # 回滚（需先停止 VM）
+  # 注意：RBD 镜像名带 / 字符时，CLI 可能无法处理
+  # 使用 Python rbd 库操作：
+  python3 << 'PYEOF'
+  import rados, rbd
+  cluster = rados.Rados(conffile="/etc/ceph/ceph.conf")
+  cluster.connect()
+  ioctx = cluster.open_ioctx("ds_ceph_vm")
+  image = rbd.Image(ioctx, "mgr2/vm-system")
+  image.rollback_to_snap("initial-clean")
+  image.close()
+  ioctx.close()
+  cluster.shutdown()
+  PYEOF
+
+或使用克隆方式：
+  rbd clone ds_ceph_vm/mgr2/vm-system@initial-clean ds_ceph_vm/mgr2-restored
+
+
+5. 关键备份文件清单
+---------------------
+
+必须备份的文件：
+  /etc/ceph/ceph.conf                       # 集群配置
+  /etc/ceph/ceph.client.admin.keyring       # admin 密钥
+  /var/lib/ceph/bootstrap-osd/ceph.keyring  # OSD bootstrap 密钥
+  /tmp/ceph.mon.keyring                     # Monitor 密钥（各节点）
+  /tmp/monmap                                # Monitor map（各节点）
+  /etc/ceph/admin.secret                     # CephFS 挂载密钥
+  /etc/rsyslog.d/99-cephfs-logs.conf        # rsyslog CephFS 配置
+  /etc/rsyslog.d/97-kvm-qemu-imfile.conf    # QEMU imfile 配置
+  /etc/fstab                                 # CephFS 挂载条目
+
+动态状态备份（需在集群运行时提取）：
+  ceph mon getmap -o /tmp/monmap.bak
+  ceph auth get mon. -o /tmp/mon.keyring.bak
+  ceph osd getcrushmap -o /tmp/crushmap.bak
+
+状态快照（用于比对恢复前后）：
+  ceph -s
+  ceph osd tree
+  ceph osd pool ls detail
+  ceph df
+  ceph-volume lvm list（各节点）
+
+
+6. VMware HA vs Ceph 自愈
+---------------------------
+
+Ceph 在磁盘级自愈（PG 自修复），不在主机级。
+NVMe 故障导致该节点 OSD down，但数据在 3 个 OSD 上有副本。
+VMware HA 可以自动重启虚拟机，但不能替代 Ceph 的数据冗余。
+
+最佳实践：
+- VMware HA：处理主机级故障（ESXi 崩溃、物理机断电）
+- Ceph 三副本：处理磁盘级故障（OSD 崩溃、磁盘坏道）
+- 两者互补，不是替代关系

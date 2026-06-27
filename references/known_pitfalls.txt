@@ -1,0 +1,181 @@
+已知坑完整数据库（31 项，全部实操验证于 OpenCloudOS 8.10 + Ceph Pacific 16.2.15）
+=====================================================================================
+
+来源：CLAUDE.md 已知坑汇总 + 实验 1-16 排错记录
+验证环境：3 节点 VMware 虚拟机集群（node129/144/145）
+
+============================================================
+一、安装/Monitor 类（10 项）
+============================================================
+
+#1 缺 EPEL → libtcmalloc.so.4 缺失
+  触发：dnf install ceph-mon 报 nothing provides libtcmalloc.so.4
+  解决：dnf install epel-release -y（必须先于 Ceph 安装）
+  阶段：Phase A
+
+#2 镜像源连接被拒
+  触发：dnf makecache 报连接超时
+  解决：改用阿里云 mirrors.aliyun.com（民大 scmu.edu.cn 曾被拒）
+  阶段：Phase A
+
+#3 mon keyring SCP 后属主 root
+  触发：ceph-mon --mkfs 报 Permission denied
+  解决：chown ceph:ceph /tmp/ceph.mon.keyring /tmp/monmap
+  阶段：Phase C（从节点初始化时）
+
+#4 单 Monitor 启动后 ceph -s 无反应
+  触发：一直卡住无输出
+  解决：正常！需 >= 2 mon 形成 quorum
+  阶段：Phase C
+
+#5 MGR 启动 start request repeated too quickly
+  触发：systemd StartLimitBurst 触发
+  解决：systemctl reset-failed ceph-mgr@nodeXXX 再 start
+  阶段：Phase C
+
+#6 Monitor 同样 start request repeated
+  触发：同 systemd 机制
+  解决：systemctl reset-failed ceph-mon@nodeXXX 再 start
+  阶段：Phase C
+
+#7 Monitor 时钟偏移 > 0.05s
+  触发：ceph -s 报 clock skew
+  解决：三节点 systemctl restart chronyd
+  阶段：Phase D
+
+#8 msgr2 未启用 + insecure global_id reclaim
+  触发：ceph -s 告警
+  解决：ceph config set mon auth_allow_insecure_global_id_reclaim false + ceph mon enable-msgr2
+  阶段：Phase D
+
+#21 OpenCloudOS repo 404
+  触发：dnf makecache 报 BaseOS metadata 404
+  解决：sed -i s/opencloudos.tech/scmu.edu.cn/g /etc/yum.repos.d/OpenCloudOS.repo
+  阶段：Phase A
+
+#23 MGR 延迟注册
+  触发：systemctl is-active 显示 active 但 ceph -s 显示 no daemons
+  解决：等待 30-60 秒自动恢复
+  阶段：Phase C
+
+
+============================================================
+二、网络/OVS 类（10 项）
+============================================================
+
+#9 NM-ovs 插件不可用
+  触发：nmcli con up ovs-vm 报 "plugin for 'ovs-bridge' unavailable"
+  解决：systemctl restart NetworkManager + sleep 5 重试
+  阶段：Phase B
+
+#10 OVS systemd exit code 1
+  触发：ovs-ctl start 返回 1（system-id 警告）
+  解决：Type=oneshot + wrapper 脚本 + --system-id=random
+  阶段：Phase B
+
+#11 OVS db 锁文件残留
+  触发：failed to lock lockfile
+  解决：rm -f /etc/openvswitch/.conf.db.~lock~
+  阶段：Phase B
+
+#12 切换 br0 后 SSH 断连
+  触发：终端卡死
+  解决：正常！用 br0 新 IP 重新 SSH
+  阶段：Phase B
+
+#13 ens224 DHCP 同网段 IP 冲突
+  触发：路由表冲突，ceph -s 卡住
+  解决：nmcli con modify "有线连接 1" ipv4.method disabled
+  阶段：Phase B
+
+#14 防火墙规则 NM 重启后丢失
+  触发：Monitor 间无法通信，卡在 probing
+  解决：重新 apply 全部防火墙规则 + 重启 ceph-mon
+  阶段：Phase B→C
+
+#15 OVS bond 第二网卡防环
+  触发：配置 bond 时引发二层广播风暴
+  解决：第二网卡加 autoconnect no，全部配置完再激活
+  阶段：OVS bond
+
+#16 SELinux 阻止 OVS 写 /etc/openvswitch
+  触发：avc: denied { write } for comm="ovsdb-tool"
+  解决：restorecon -Rv /etc/openvswitch
+  阶段：Phase B
+
+#17 VMware 重启后时间漂移 → mon 卡 Paxos
+  触发：osd_failure 卡住
+  解决：配置上游 NTP + 重启全部 3 个 mon
+  阶段：任何时候
+
+#24 OVS tar 解压后文件不完整
+  触发：make 执行时 configure 不存在
+  解决：rm -rf && tar -zxf 重新解压
+  阶段：Phase B
+
+
+============================================================
+三、OSD 类（4 项）
+============================================================
+
+#18 Bootstrap OSD keyring 路径不匹配
+  触发：ceph-volume lvm batch 报 unable to find keyring
+  解决：ln -sf /var/lib/ceph/bootstrap-osd/ceph.keyring /etc/ceph/ceph.client.bootstrap-osd.keyring
+  阶段：Phase E
+
+#19 LVM 写零操作导致阵列卡死锁
+  触发：Dell H710 阵列卡
+  解决：lvm.conf 设置 zero = 0，lvcreate 加 -W n -Z n
+  阶段：Phase E
+
+#20 系统重装后 OSD 恢复
+  触发：系统盘坏，OSD 数据盘完好
+  解决：重装系统 → 配 IP → 装依赖 → ceph-volume lvm activate --all
+  阶段：灾备
+
+#27 LVM 锁残留导致 ceph-volume 挂死
+  触发：ceph-volume lvm batch 无响应
+  解决：killall -9 lvm; rm -f /var/lock/lvm/*_global* 或改用 ceph-volume raw prepare
+  阶段：Phase E
+
+
+============================================================
+四、auth 类（2 项）
+============================================================
+
+#28 auth_allow_insecure_global_id_reclaim=false 阻塞新 OSD 认证
+  触发：OSD auth 失败
+  解决：ceph osd purge <id> 清理旧 OSD + ceph config set mon auth_allow_insecure_global_id_reclaim true
+  阶段：Phase E
+
+#29 OSD 删除残留 entity exists but key does not match
+  触发：ceph osd rm 后残留 auth 条目
+  解决：用 ceph osd purge <id>（非 ceph osd rm）彻底清除
+  阶段：Phase E
+
+
+============================================================
+五、通用/环境类（5 项）
+============================================================
+
+#22 SSH 免密需通过宿主机 paramiko 完成
+  触发：节点间 ssh-copy-id 需要密码交互
+  解决：在宿主机用 paramiko 直接写 authorized_keys
+  阶段：Phase A
+
+#25 Windows GBK 编码导致 UnicodeEncodeError
+  触发：Python print() 含 emoji 等非 BMP 字符
+  解决：日志中不使用 emoji，用纯文本标记
+  阶段：全程
+
+#26 paramiko exec_command 长命令超时
+  触发：dnf install ~96MB 下载无输出
+  解决：拆分为独立短命令执行
+  阶段：全程
+
+#30 SELinux Enforcing 阻止 rsyslog 写 CephFS
+  触发：宿主机重启后 rsyslog 日志写入中断，AVC 拦截 syslogd_t → cephfs_t
+  解决：audit2allow -M rsyslogallow → semodule -i rsyslogallow.pp
+  阶段：维护
+
+（注：#25-#26 不在 CLAUDE.md 的 30 项编号中，此处保留作为环境适配参考）
