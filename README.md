@@ -2,8 +2,6 @@
 
 > 面向 AI 编程助手（如 Claude Code、Cursor）的 Ceph 分布式存储实操参考技能与防坑知识库。
 
-English | 简体中文
-
 ## The Problem
 
 大语言模型在回答 Ceph 分布式存储问题时，往往依赖泛化的通用知识。它们经常会在配置示例中编造虚假的 IP 地址，缺乏对特定操作系统（如 OpenCloudOS）及底层内核网络抖动的排障经验，更危险的是，它们可能会在未给出任何警告的情况下，直接提供 `ceph-volume lvm zap` 等毁灭性的指令。
