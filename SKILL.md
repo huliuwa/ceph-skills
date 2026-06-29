@@ -21,6 +21,8 @@ description: >
 4. **标注来源**：回答末尾标注信息来源。实操经验标注 `[已验证-实验N]`，官方内容标注 `[官方文档 - 章节名](URL)`。
 5. **环境感知**：回答时先确认用户系统（OpenCloudOS/RHEL/Ubuntu）和 Ceph 版本（Pacific/Quincy/Reef），不同环境下命令和行为可能不同。
 6. **参数变量化**：回答中涉及用户环境时，IP、节点名、路径、版本号等必须用变量/占位符表示，提示用户替换（见下方原则）。
+7. **高危操作阻断**：遇到 `ceph-volume lvm zap`（销毁 OSD）、`ceph osd pool delete`（删除存储池）、`ceph osd purge`（清除 OSD）等破坏性命令时，必须在输出前使用显眼警告提示用户二次确认。
+8. **排障先查日志**：排查故障时不要盲目推测。应优先要求用户提供 `ceph -s` 状态，并查看组件日志（`journalctl -u ceph-mon@<节点名> -e` 或 `/var/log/ceph/ceph-osd.<ID>.log`）。
 
 ---
 
@@ -288,7 +290,7 @@ ceph fs status cephfs_kvm_log    # CephFS 状态
 
 ---
 
-## 已知坑完整数据库（31 项，全部实操验证）
+## 已知坑完整数据库（27 项，全部实操验证）
 
 > 来源：CLAUDE.md 已知坑汇总 + 实验 1-16 排错记录
 
@@ -297,55 +299,52 @@ ceph fs status cephfs_kvm_log    # CephFS 状态
 | # | 问题 | 触发条件 | 解决方案 | 出现阶段 |
 |---|------|---------|----------|---------|
 | 1 | 缺 EPEL → `libtcmalloc.so.4` 缺失 | `dnf install ceph-mon` 报 nothing provides | `dnf install epel-release -y` **必须先执行** | Phase A |
-| 2 | 镜像源连接被拒 | `dnf makecache` 报连接超时 | 改用阿里云 `mirrors.aliyun.com`（民大 `scmu.edu.cn` 曾被拒） | Phase A |
-| 21 | OpenCloudOS repo 404 | `dnf makecache` 报 BaseOS metadata 404 | `sed -i s/opencloudos.tech/scmu.edu.cn/g /etc/yum.repos.d/OpenCloudOS.repo` | Phase A |
+| 2 | 镜像源不可用/404 | `dnf makecache` 报连接超时或 BaseOS 404 | OpenCloudOS: `sed -i s/opencloudos.tech/scmu.edu.cn/g`；通用: 改用阿里云 `mirrors.aliyun.com` | Phase A |
 | 3 | mon keyring SCP 后属主 root | `ceph-mon --mkfs` 报 Permission denied | `chown ceph:ceph /tmp/ceph.mon.keyring /tmp/monmap` | Phase C |
 | 4 | 单 Monitor 启动后 `ceph -s` 无反应 | 一直卡住无输出 | **正常！** 需 >= 2 mon 形成 quorum | Phase C |
-| 5 | MGR 启动 `start request repeated too quickly` | systemd StartLimitBurst 触发 | `systemctl reset-failed ceph-mgr@nodeXXX` 再 start | Phase C |
-| 6 | Monitor 同样 `start request repeated` | 同 systemd 机制 | `systemctl reset-failed ceph-mon@nodeXXX` 再 start | Phase C |
-| 7 | Monitor 时钟偏移 > 0.05s | `ceph -s` 报 clock skew | 三节点 `systemctl restart chronyd` | Phase D |
-| 8 | msgr2 未启用 + insecure global_id reclaim | `ceph -s` 告警 | `ceph config set mon auth_allow_insecure_global_id_reclaim false` + `ceph mon enable-msgr2` | Phase D |
-| 23 | MGR 延迟注册 | `systemctl is-active` 显示 active 但 `ceph -s` 显示 no daemons | 等待 30-60 秒自动恢复 | Phase C |
+| 5 | MGR/MON 启动 `start request repeated too quickly` | systemd StartLimitBurst 触发 | `systemctl reset-failed ceph-mgr@<节点名>` 再 start。**必须用 `journalctl -u ceph-xxx -e` 查根因**，否则重启依然会挂 | Phase C |
+| 6 | Monitor 时钟偏移 > 0.05s | `ceph -s` 报 clock skew | 三节点 `systemctl restart chronyd` | Phase D |
+| 7 | msgr2 未启用 + insecure global_id reclaim | `ceph -s` 告警 | `ceph config set mon auth_allow_insecure_global_id_reclaim false` + `ceph mon enable-msgr2` | Phase D |
+| 8 | VMware 重启后时间漂移 → mon 卡 Paxos | `osd_failure` 卡住 | 配置上游 NTP + 重启全部 3 个 mon | 任何时候 |
+| 9 | MGR 延迟注册 | `systemctl is-active` 显示 active 但 `ceph -s` 显示 no daemons | 等待 30-60 秒自动恢复 | Phase C |
 
 ### 网络/OVS 类
 
 | # | 问题 | 触发条件 | 解决方案 | 出现阶段 |
 |---|------|---------|----------|---------|
-| 9 | NM-ovs 插件不可用 | `nmcli con up ovs-vm` 报 "plugin unavailable" | `systemctl restart NetworkManager` + sleep 5 重试 | Phase B |
-| 10 | OVS systemd exit code 1 | `ovs-ctl start` 返回 1（system-id 警告） | Type=oneshot + wrapper 脚本 + `--system-id=random` | Phase B |
-| 11 | OVS db 锁文件残留 | "failed to lock lockfile" | `rm -f /etc/openvswitch/.conf.db.~lock~` | Phase B |
-| 12 | 切换 br0 后 SSH 断连 | 终端卡死 | **正常！** 用 br0 新 IP 重新 SSH | Phase B |
-| 13 | ens224 DHCP 同网段 IP 冲突 | 路由表冲突，`ceph -s` 卡住 | `nmcli con modify "有线连接 1" ipv4.method disabled` | Phase B |
-| 14 | 防火墙规则 NM 重启后丢失 | Monitor 间无法通信，卡在 probing | **重新 apply 全部防火墙规则** + 重启 ceph-mon | Phase B→C |
-| 15 | OVS bond 第二网卡防环 | 配置 bond 时引发二层广播风暴 | 第二网卡加 `autoconnect no`，全部配置完再激活 | OVS bond |
-| 16 | SELinux 阻止 OVS 写 `/etc/openvswitch` | `avc: denied { write } for comm="ovsdb-tool"` | `restorecon -Rv /etc/openvswitch` | Phase B |
-| 17 | VMware 重启后时间漂移 → mon 卡 Paxos | `osd_failure` 卡住 | 配置上游 NTP + 重启全部 3 个 mon | 任何时候 |
-| 24 | OVS tar 解压后文件不完整 | `make` 执行时 configure 不存在 | `rm -rf && tar -zxf` 重新解压 | Phase B |
+| 10 | NM-ovs 插件不可用 | `nmcli con up ovs-vm` 报 "plugin unavailable" | `systemctl restart NetworkManager` + sleep 5 重试 | Phase B |
+| 11 | OVS systemd exit code 1 | `ovs-ctl start` 返回 1（system-id 警告） | Type=oneshot + wrapper 脚本 + `--system-id=random` | Phase B |
+| 12 | OVS db 锁文件残留 | "failed to lock lockfile" | `rm -f /etc/openvswitch/.conf.db.~lock~` | Phase B |
+| 13 | 切换 br0 后 SSH 断连 | 终端卡死 | **正常！** 用 br0 新 IP 重新 SSH | Phase B |
+| 14 | ens224 DHCP 同网段 IP 冲突 | 路由表冲突，`ceph -s` 卡住 | `nmcli con modify "有线连接 1" ipv4.method disabled` | Phase B |
+| 15 | 防火墙规则 NM 重启后丢失 | Monitor 间无法通信，卡在 probing | **重新 apply 全部防火墙规则** + 重启 ceph-mon | Phase B→C |
+| 16 | OVS bond 第二网卡防环 | 配置 bond 时引发二层广播风暴 | 第二网卡加 `autoconnect no`，全部配置完再激活 | OVS bond |
+| 17 | SELinux 阻止 OVS 写 `/etc/openvswitch` | `avc: denied { write } for comm="ovsdb-tool"` | `restorecon -Rv /etc/openvswitch` | Phase B |
+| 18 | OVS tar 解压后文件不完整 | `make` 执行时 configure 不存在 | `rm -rf && tar -zxf` 重新解压 | Phase B |
 
 ### OSD 类
 
 | # | 问题 | 触发条件 | 解决方案 | 出现阶段 |
 |---|------|---------|----------|---------|
-| 18 | Bootstrap OSD keyring 路径不匹配 | `ceph-volume lvm batch` 报 unable to find keyring | `ln -sf /var/lib/ceph/bootstrap-osd/ceph.keyring /etc/ceph/ceph.client.bootstrap-osd.keyring` | Phase E |
-| 19 | LVM 写零操作导致阵列卡死锁 | Dell H710 阵列卡 | `lvm.conf` 设置 `zero = 0`，`lvcreate` 加 `-W n -Z n` | Phase E |
-| 20 | 系统重装后 OSD 恢复 | 系统盘坏，OSD 数据盘完好 | 重装系统 → 配 IP → 装依赖 → `ceph-volume lvm activate --all` | 灾备 |
-| 27 | LVM 锁残留导致 ceph-volume 挂死 | `ceph-volume lvm batch` 无响应 | `killall -9 lvm; rm -f /var/lock/lvm/*_global*` 或改用 `ceph-volume raw prepare` | Phase E |
+| 19 | Bootstrap OSD keyring 路径不匹配 | `ceph-volume lvm batch` 报 unable to find keyring | `ln -sf /var/lib/ceph/bootstrap-osd/ceph.keyring /etc/ceph/ceph.client.bootstrap-osd.keyring` | Phase E |
+| 20 | LVM 写零操作导致阵列卡死锁 | Dell H710 阵列卡 | `lvm.conf` 设置 `zero = 0`，`lvcreate` 加 `-W n -Z n` | Phase E |
+| 21 | 系统重装后 OSD 恢复 | 系统盘坏，OSD 数据盘完好 | 重装系统 → 配 IP → 装依赖 → `ceph-volume lvm activate --all` | 灾备 |
+| 22 | LVM 锁残留导致 ceph-volume 挂死 | `ceph-volume lvm batch` 无响应 | `killall -9 lvm; rm -f /var/lock/lvm/*_global*` 或改用 `ceph-volume raw prepare` | Phase E |
 
 ### auth 类
 
 | # | 问题 | 触发条件 | 解决方案 | 出现阶段 |
 |---|------|---------|----------|---------|
-| 28 | `auth_allow_insecure_global_id_reclaim=false` 阻塞新 OSD 认证 | OSD auth 失败 | `ceph osd purge <id>` + `ceph config set mon auth_allow_insecure_global_id_reclaim true` 后重试 | Phase E |
-| 29 | OSD 删除残留 `entity exists but key does not match` | `ceph osd rm` 后残留 auth 条目 | 用 `ceph osd purge <id>`（**非** `ceph osd rm`）彻底清除 | Phase E |
+| 23 | `auth_allow_insecure_global_id_reclaim=false` 阻塞新 OSD 认证 | OSD auth 失败 | `ceph osd purge <id>` 清理旧 OSD + `ceph config set mon auth_allow_insecure_global_id_reclaim true` 后重试（**实验环境降级方案，生产应启用 msgr2**） | Phase E |
+| 24 | OSD 删除残留 `entity exists but key does not match` | `ceph osd rm` 后残留 auth 条目 | 用 `ceph osd purge <id>`（**非** `ceph osd rm`）彻底清除。原因：`osd rm` 仅从 OSD map 移除，遗留 CRUSH map 位置信息和 cephx auth 密钥；`osd purge` 一并清理 OSD map + CRUSH map + auth 密钥，是安全下线 OSD 的标准做法 | Phase E |
 
 ### 通用/环境类
 
 | # | 问题 | 触发条件 | 解决方案 | 出现阶段 |
 |---|------|---------|----------|---------|
-| 22 | SSH 免密需通过宿主机 paramiko 完成 | 节点间 ssh-copy-id 需要密码交互 | 在宿主机用 paramiko 直接写 authorized_keys | Phase A |
-| 25 | Windows GBK 编码导致 UnicodeEncodeError | Python `print()` 含 emoji 等非 BMP 字符 | 日志中不使用 emoji，用纯文本标记 | 全程 |
-| 26 | paramiko exec_command 长命令超时 | `dnf install` ~96MB 下载无输出 | 拆分为独立短命令执行，或流式读取 stdout.channel.recv() | 全程 |
-| 30 | SELinux Enforcing 阻止 rsyslog 写 CephFS | 宿主机重启后 rsyslog 日志写入中断 | `audit2allow -M rsyslogallow` → `semodule -i rsyslogallow.pp` | 维护 |
+| 25 | SSH 免密需通过宿主机 paramiko 完成 | 节点间 ssh-copy-id 需要密码交互 | 在宿主机用 paramiko 直接写 authorized_keys | Phase A |
+| 26 | Windows GBK 编码导致 UnicodeEncodeError | Python `print()` 含 emoji 等非 BMP 字符 | 日志中不使用 emoji，用纯文本标记 | 全程 |
+| 27 | paramiko exec_command 长命令超时 | `dnf install` ~96MB 下载无输出 | 拆分为独立短命令执行，或流式读取 stdout.channel.recv() | 全程 |
 
 ---
 
@@ -363,13 +362,23 @@ ceph fs status cephfs_kvm_log    # CephFS 状态
 dnf install -y policycoreutils-python-utils
 
 # 2. 分析 AVC 拦截日志，自动生成策略模块
-#    注意：grep 模式要精确匹配 domain_t → target_t
+#    注意：grep 模式要精确匹配 domain_t → target_t，路径必须明确
 grep 'syslogd_t.*cephfs_t' /var/log/audit/audit.log | audit2allow -M /tmp/rsyslogallow
 #    -M 参数可含路径前缀（模块名取自 basename），输出 .te/.pp 到指定目录
 
 # 3. 加载策略
 semodule -i /tmp/rsyslogallow.pp
 #    注意：semodule -i 触发 SELinux 策略全量重建，耗时数秒至数十秒（视策略大小和硬件而定）
+```
+
+### 实战案例：SELinux 阻止 rsyslog 写 CephFS（#30）
+
+**现象**：宿主机重启后 rsyslog 日志写入中断，`/var/log/ceph/` 下无新日志。
+**根因**：SELinux Enforcing 模式下，`syslogd_t` 域无权写入 `cephfs_t` 类型的挂载点。
+**修复**：
+```bash
+grep 'syslogd_t.*cephfs_t' /var/log/audit/audit.log | audit2allow -M /tmp/rsyslogallow
+semodule -i /tmp/rsyslogallow.pp
 ```
 
 ### 常见拦截场景
@@ -457,7 +466,7 @@ fsid = <你的集群FSID>
 mon_initial_members = <node1>, <node2>, <node3>
 mon_host = <管理IP1>, <管理IP2>, <管理IP3>
 public_network = <管理网段CIDR>
-# cluster_network = <存储网段CIDR>    # 可选：独立集群网络用于复制流量
+cluster_network = <存储网段CIDR>    # 独立集群网络用于复制流量，避免与客户端流量争抢带宽
 auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
@@ -474,8 +483,11 @@ osd_pool_default_min_size = <最小副本数>
 ```
 
 **关键**: 必须包含 `x-systemd.requires=network-online.target`，否则宿主机重启后挂载可能失败。
+**多 Mon IP 格式**: 多个 Mon 地址用英文逗号分隔且不能有空格，例如 `10.0.0.1,10.0.0.2,10.0.0.3:6789:/`。
 
 ### rsyslog 直写 CephFS（极简 1 template + 1 action）
+
+利用 `%syslogseverity-text%` 动态生成文件路径，按 syslog 标准 8 级（emerg, alert, crit, err, warning, notice, info, debug）自动拆分为独立日志文件，无需 if-else 判断。
 
 ```conf
 template(name="CephFSLog" type="string"
@@ -537,7 +549,10 @@ exec /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random 2>&1
 </pool>
 ```
 
-**权限铁律**: 绝不把 `client.admin` 给虚拟化引擎，使用专用 `client.libvirt` 用户。
+**权限铁律**: 绝不把 `client.admin` 给虚拟化引擎。应使用专属降权账户：
+```bash
+ceph auth get-or-create client.libvirt mon 'profile rbd' osd 'profile rbd pool=<RBD池名>'
+```
 
 ---
 
@@ -603,10 +618,13 @@ scp <其他节点>:/etc/ceph/ceph.conf /etc/ceph/
 scp <其他节点>:/etc/ceph/ceph.client.admin.keyring /etc/ceph/
 scp <其他节点>:/var/lib/ceph/bootstrap-osd/ceph.keyring /var/lib/ceph/bootstrap-osd/
 
-# 5. 激活 OSD（自动读取 OSD 数据盘上的 LVM 元数据）
+# 5. 修正权限（SCP 过来的文件属主是 root，必须改回 ceph）
+chown -R ceph:ceph /etc/ceph/
+
+# 6. 激活 OSD（自动读取 OSD 数据盘上的 LVM 元数据）
 ceph-volume lvm activate --all
 
-# 6. 验证
+# 7. 验证
 ceph -s
 ```
 
